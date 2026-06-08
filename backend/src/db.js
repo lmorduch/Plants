@@ -47,8 +47,20 @@ export async function initDb() {
         interval_days INT NOT NULL,
         last_done DATE,
         next_due DATE,
+        notify_enabled TINYINT(1) NOT NULL DEFAULT 1,
+        notify_days_before INT NOT NULL DEFAULT 0,
         FOREIGN KEY (plant_id) REFERENCES plants(id) ON DELETE CASCADE,
         UNIQUE KEY unique_plant_type (plant_id, type)
+      )
+    `);
+
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        endpoint VARCHAR(1000) NOT NULL UNIQUE,
+        p256dh VARCHAR(500) NOT NULL,
+        auth VARCHAR(500) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
   } finally {

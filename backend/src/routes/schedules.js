@@ -14,7 +14,7 @@ router.get('/:plantId/schedules', async (req, res) => {
 
 // PUT /plants/:plantId/schedules/:type  (upsert)
 router.put('/:plantId/schedules/:type', async (req, res) => {
-  const { interval_days, last_done } = req.body;
+  const { interval_days, last_done, notify_enabled = 1, notify_days_before = 0 } = req.body;
   const { plantId, type } = req.params;
 
   const nextDue = last_done
@@ -26,10 +26,15 @@ router.put('/:plantId/schedules/:type', async (req, res) => {
     : new Date().toISOString().split('T')[0];
 
   await pool.execute(
-    `INSERT INTO care_schedules (plant_id, type, interval_days, last_done, next_due)
-     VALUES (?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE interval_days = VALUES(interval_days), last_done = VALUES(last_done), next_due = VALUES(next_due)`,
-    [plantId, type, interval_days, last_done || null, nextDue]
+    `INSERT INTO care_schedules (plant_id, type, interval_days, last_done, next_due, notify_enabled, notify_days_before)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       interval_days = VALUES(interval_days),
+       last_done = VALUES(last_done),
+       next_due = VALUES(next_due),
+       notify_enabled = VALUES(notify_enabled),
+       notify_days_before = VALUES(notify_days_before)`,
+    [plantId, type, interval_days, last_done || null, nextDue, notify_enabled ? 1 : 0, notify_days_before]
   );
 
   const [[schedule]] = await pool.execute(
