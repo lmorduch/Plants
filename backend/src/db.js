@@ -57,7 +57,7 @@ export async function initDb() {
     await conn.execute(`
       CREATE TABLE IF NOT EXISTS push_subscriptions (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        endpoint VARCHAR(1000) NOT NULL UNIQUE,
+        endpoint VARCHAR(767) NOT NULL UNIQUE,
         p256dh VARCHAR(500) NOT NULL,
         auth VARCHAR(500) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
