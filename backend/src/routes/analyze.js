@@ -4,7 +4,6 @@ import multer from 'multer';
 import fs from 'fs';
 
 const router = Router();
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -14,6 +13,12 @@ const upload = multer({
 // POST /analyze  — identify plant or assess health from a photo
 router.post('/', upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No photo provided' });
+
+  const apiKey = req.headers['x-anthropic-api-key'] || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return res.status(401).json({ error: 'No API key configured. Add your Anthropic API key in Settings.', code: 'NO_API_KEY' });
+  }
+  const client = new Anthropic({ apiKey });
 
   const { mode = 'identify' } = req.body; // 'identify' | 'health'
   const base64 = req.file.buffer.toString('base64');

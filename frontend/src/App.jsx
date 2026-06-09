@@ -4,7 +4,8 @@ import Dashboard from './pages/Dashboard';
 import Plants from './pages/Plants';
 import PlantDetail from './pages/PlantDetail';
 import Analyze from './pages/Analyze';
-import { Leaf, LayoutDashboard, Microscope, Menu, X } from 'lucide-react';
+import Settings from './pages/Settings';
+import { Leaf, LayoutDashboard, Microscope, Menu, X, Settings as SettingsIcon } from 'lucide-react';
 import { useState } from 'react';
 import './index.css';
 
@@ -16,6 +17,7 @@ function Nav() {
     { to: '/', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { to: '/plants', label: 'My Plants', icon: <Leaf size={18} /> },
     { to: '/analyze', label: 'Analyze', icon: <Microscope size={18} /> },
+    { to: '/settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
   ];
   return (
     <nav className="bg-green-800 text-white shadow-lg">
@@ -79,6 +81,7 @@ export default function App() {
               <Route path="/plants" element={<Plants />} />
               <Route path="/plants/:id" element={<PlantDetail />} />
               <Route path="/analyze" element={<Analyze />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
         </div>

@@ -1,6 +1,14 @@
 import axios from 'axios';
+import { getStoredApiKey } from './hooks/useApiKey';
 
 const api = axios.create({ baseURL: '/api' });
+
+// Inject the user's API key on every request if present
+api.interceptors.request.use((config) => {
+  const key = getStoredApiKey();
+  if (key) config.headers['x-anthropic-api-key'] = key;
+  return config;
+});
 
 export const getPlants = () => api.get('/plants').then(r => r.data);
 export const getPlant = (id) => api.get(`/plants/${id}`).then(r => r.data);
@@ -19,5 +27,8 @@ export const upsertSchedule = (plantId, type, data) =>
 export const getUpcoming = (days = 7) => api.get(`/schedule/upcoming?days=${days}`).then(r => r.data);
 
 export const analyzePlant = (formData) => api.post('/analyze', formData).then(r => r.data);
+
+export const chatWithAssistant = (plantId, messages) =>
+  api.post(`/assistant/${plantId}/chat`, { messages }).then(r => r.data);
 
 export default api;

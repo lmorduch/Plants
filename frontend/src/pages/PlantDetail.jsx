@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant } from '../api';
 import PhotoCapture from '../components/PhotoCapture';
+import PlantAssistant from '../components/PlantAssistant';
 import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp } from 'lucide-react';
 
 const LOG_TYPES = ['watering', 'fertilizing', 'repotting', 'pruning', 'observation'];
@@ -337,6 +338,9 @@ export default function PlantDetail() {
           </div>
         )}
       </div>
+
+      {/* AI Assistant */}
+      <PlantAssistant plantId={id} plantName={plant.name} />
 
       {showLog && <AddLogModal plantId={id} onClose={() => setShowLog(false)} />}
     </div>
