@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getStoredApiKey } from './hooks/useApiKey';
 
-const api = axios.create({ baseURL: '/api' });
+const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL || ''}/api` });
 
 // Inject the user's API key on every request if present
 api.interceptors.request.use((config) => {
