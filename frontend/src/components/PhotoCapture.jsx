@@ -112,16 +112,24 @@ export default function PhotoCapture({ onChange, preview, className = '' }) {
       <canvas ref={canvasRef} className="hidden" />
 
       {preview ? (
-        <div className="relative">
-          <img src={preview} alt="Preview" className="w-full rounded-xl object-cover max-h-64" />
-          <button onClick={() => onChange(null)}
-            className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70">
-            <X size={16} />
-          </button>
-          <button onClick={() => fileInputRef.current?.click()}
-            className="absolute bottom-2 right-2 bg-black/50 text-white px-3 py-1 rounded-full text-xs hover:bg-black/70 flex items-center gap-1">
-            <Upload size={12} /> Change
-          </button>
+        <div>
+          <div className="relative">
+            <img src={preview} alt="Preview" className="w-full rounded-xl object-cover max-h-64" />
+            <button type="button" onClick={() => onChange(null)} title="Remove"
+              className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="flex justify-center gap-3 mt-2">
+            <button type="button" onClick={startCamera}
+              className="flex items-center gap-2 bg-green-700 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-800">
+              <Camera size={16} /> Take Photo
+            </button>
+            <button type="button" onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50">
+              <Upload size={16} /> Upload
+            </button>
+          </div>
         </div>
       ) : (
         <div className="border-2 border-dashed border-green-300 rounded-xl p-6 text-center bg-green-50/50">
