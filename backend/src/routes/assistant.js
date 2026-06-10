@@ -54,8 +54,11 @@ router.post('/:plantId/chat', async (req, res) => {
     });
   }
 
-  // Fetch plant context
-  const [[plant]] = await pool.execute('SELECT * FROM plants WHERE id = ?', [req.params.plantId]);
+  // Fetch plant context (scoped to the authenticated user)
+  const [[plant]] = await pool.execute(
+    'SELECT * FROM plants WHERE id = ? AND user_id = ?',
+    [req.params.plantId, req.userId]
+  );
   if (!plant) return res.status(404).json({ error: 'Plant not found' });
 
   const [logs] = await pool.execute(
