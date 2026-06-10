@@ -1,3 +1,5 @@
+// ABOUTME: CRUD routes for plants, scoped to the authenticated user.
+// ABOUTME: All queries filter by user_id so users only see their own plants.
 import { Router } from 'express';
 import pool from '../db.js';
 import multer from 'multer';
@@ -29,14 +31,18 @@ router.get('/', async (req, res) => {
     FROM plants p
     LEFT JOIN care_schedules cs_w ON cs_w.plant_id = p.id AND cs_w.type = 'watering'
     LEFT JOIN care_schedules cs_f ON cs_f.plant_id = p.id AND cs_f.type = 'fertilizing'
+    WHERE p.user_id = ?
     ORDER BY p.name
-  `);
+  `, [req.userId]);
   res.json(plants);
 });
 
 // GET /plants/:id
 router.get('/:id', async (req, res) => {
-  const [[plant]] = await pool.execute('SELECT * FROM plants WHERE id = ?', [req.params.id]);
+  const [[plant]] = await pool.execute(
+    'SELECT * FROM plants WHERE id = ? AND user_id = ?',
+    [req.params.id, req.userId]
+  );
   if (!plant) return res.status(404).json({ error: 'Plant not found' });
 
   const [logs] = await pool.execute(
@@ -57,8 +63,8 @@ router.post('/', upload.single('photo'), async (req, res) => {
   const photo_url = req.file ? `/uploads/plants/${req.file.filename}` : null;
 
   const [result] = await pool.execute(
-    'INSERT INTO plants (name, species, location, acquired_date, notes, photo_url) VALUES (?, ?, ?, ?, ?, ?)',
-    [name, species || null, location || null, acquired_date || null, notes || null, photo_url]
+    'INSERT INTO plants (user_id, name, species, location, acquired_date, notes, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [req.userId, name, species || null, location || null, acquired_date || null, notes || null, photo_url]
   );
   const [[plant]] = await pool.execute('SELECT * FROM plants WHERE id = ?', [result.insertId]);
   res.status(201).json(plant);
@@ -67,14 +73,17 @@ router.post('/', upload.single('photo'), async (req, res) => {
 // PUT /plants/:id
 router.put('/:id', upload.single('photo'), async (req, res) => {
   const { name, species, location, acquired_date, notes } = req.body;
-  const [[existing]] = await pool.execute('SELECT * FROM plants WHERE id = ?', [req.params.id]);
+  const [[existing]] = await pool.execute(
+    'SELECT * FROM plants WHERE id = ? AND user_id = ?',
+    [req.params.id, req.userId]
+  );
   if (!existing) return res.status(404).json({ error: 'Plant not found' });
 
   const photo_url = req.file ? `/uploads/plants/${req.file.filename}` : existing.photo_url;
 
   await pool.execute(
-    'UPDATE plants SET name=?, species=?, location=?, acquired_date=?, notes=?, photo_url=? WHERE id=?',
-    [name, species || null, location || null, acquired_date || null, notes || null, photo_url, req.params.id]
+    'UPDATE plants SET name=?, species=?, location=?, acquired_date=?, notes=?, photo_url=? WHERE id=? AND user_id=?',
+    [name, species || null, location || null, acquired_date || null, notes || null, photo_url, req.params.id, req.userId]
   );
   const [[plant]] = await pool.execute('SELECT * FROM plants WHERE id = ?', [req.params.id]);
   res.json(plant);
@@ -82,7 +91,10 @@ router.put('/:id', upload.single('photo'), async (req, res) => {
 
 // DELETE /plants/:id
 router.delete('/:id', async (req, res) => {
-  const [result] = await pool.execute('DELETE FROM plants WHERE id = ?', [req.params.id]);
+  const [result] = await pool.execute(
+    'DELETE FROM plants WHERE id = ? AND user_id = ?',
+    [req.params.id, req.userId]
+  );
   if (result.affectedRows === 0) return res.status(404).json({ error: 'Plant not found' });
   res.json({ success: true });
 });

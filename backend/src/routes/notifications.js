@@ -1,3 +1,5 @@
+// ABOUTME: Push notification routes — subscribe, unsubscribe, and test pushes.
+// ABOUTME: Subscriptions are scoped to req.userId so each user gets their own notifications.
 import { Router } from 'express';
 import webpush from 'web-push';
 import pool from '../db.js';
@@ -12,10 +14,10 @@ router.post('/subscribe', async (req, res) => {
   }
 
   await pool.execute(
-    `INSERT INTO push_subscriptions (endpoint, p256dh, auth)
-     VALUES (?, ?, ?)
-     ON DUPLICATE KEY UPDATE p256dh = VALUES(p256dh), auth = VALUES(auth)`,
-    [endpoint, keys.p256dh, keys.auth]
+    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), p256dh = VALUES(p256dh), auth = VALUES(auth)`,
+    [req.userId, endpoint, keys.p256dh, keys.auth]
   );
 
   res.status(201).json({ success: true });
@@ -24,13 +26,16 @@ router.post('/subscribe', async (req, res) => {
 // DELETE /api/notifications/unsubscribe
 router.delete('/unsubscribe', async (req, res) => {
   const { endpoint } = req.body;
-  await pool.execute('DELETE FROM push_subscriptions WHERE endpoint = ?', [endpoint]);
+  await pool.execute(
+    'DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?',
+    [endpoint, req.userId]
+  );
   res.json({ success: true });
 });
 
-// POST /api/notifications/test  — send a test push to all subscribers
+// POST /api/notifications/test  — send a test push to the current user's subscriptions
 router.post('/test', async (req, res) => {
-  const sent = await sendPushToAll({
+  const sent = await sendPushToUser(req.userId, {
     title: '🌿 PlantCare Test',
     body: 'Push notifications are working!',
     icon: '/favicon.svg',
@@ -38,8 +43,11 @@ router.post('/test', async (req, res) => {
   res.json({ sent });
 });
 
-export async function sendPushToAll(payload) {
-  const [subs] = await pool.execute('SELECT * FROM push_subscriptions');
+export async function sendPushToUser(userId, payload) {
+  const [subs] = await pool.execute(
+    'SELECT * FROM push_subscriptions WHERE user_id = ?',
+    [userId]
+  );
   let sent = 0;
   for (const sub of subs) {
     try {

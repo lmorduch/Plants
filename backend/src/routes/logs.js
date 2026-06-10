@@ -1,3 +1,5 @@
+// ABOUTME: Care log routes — create, list, delete logs for a plant.
+// ABOUTME: Verifies plant ownership against req.userId before every operation.
 import { Router } from 'express';
 import pool from '../db.js';
 import multer from 'multer';
@@ -17,8 +19,19 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
+async function ownedPlant(plantId, userId) {
+  const [[plant]] = await pool.execute(
+    'SELECT id FROM plants WHERE id = ? AND user_id = ?',
+    [plantId, userId]
+  );
+  return plant || null;
+}
+
 // GET /plants/:plantId/logs
 router.get('/:plantId/logs', async (req, res) => {
+  if (!await ownedPlant(req.params.plantId, req.userId)) {
+    return res.status(404).json({ error: 'Plant not found' });
+  }
   const [logs] = await pool.execute(
     'SELECT * FROM care_logs WHERE plant_id = ? ORDER BY logged_at DESC',
     [req.params.plantId]
@@ -28,6 +41,9 @@ router.get('/:plantId/logs', async (req, res) => {
 
 // POST /plants/:plantId/logs
 router.post('/:plantId/logs', upload.single('photo'), async (req, res) => {
+  if (!await ownedPlant(req.params.plantId, req.userId)) {
+    return res.status(404).json({ error: 'Plant not found' });
+  }
   const { type, notes } = req.body;
   const photo_url = req.file ? `/uploads/logs/${req.file.filename}` : null;
   const plant_id = req.params.plantId;
@@ -60,6 +76,9 @@ router.post('/:plantId/logs', upload.single('photo'), async (req, res) => {
 
 // DELETE /plants/:plantId/logs/:logId
 router.delete('/:plantId/logs/:logId', async (req, res) => {
+  if (!await ownedPlant(req.params.plantId, req.userId)) {
+    return res.status(404).json({ error: 'Plant not found' });
+  }
   const [result] = await pool.execute(
     'DELETE FROM care_logs WHERE id = ? AND plant_id = ?',
     [req.params.logId, req.params.plantId]
