@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { Camera, Upload, X, RefreshCw } from 'lucide-react';
 
 /**
@@ -17,6 +17,10 @@ export default function PhotoCapture({ onChange, preview, className = '' }) {
   const [mode, setMode] = useState('idle'); // 'idle' | 'camera'
   const [stream, setStream] = useState(null);
   const [facingMode, setFacingMode] = useState('environment'); // rear camera default
+  const [previewErrored, setPreviewErrored] = useState(false);
+
+  // A missing/broken existing photo should fall back to the add-photo state.
+  useEffect(() => { setPreviewErrored(false); }, [preview]);
 
   async function startCamera() {
     try {
@@ -111,10 +115,11 @@ export default function PhotoCapture({ onChange, preview, className = '' }) {
         onChange={e => { if (e.target.files[0]) onChange(e.target.files[0]); }} />
       <canvas ref={canvasRef} className="hidden" />
 
-      {preview ? (
+      {preview && !previewErrored ? (
         <div>
           <div className="relative">
-            <img src={preview} alt="Preview" className="w-full rounded-xl object-cover max-h-64" />
+            <img src={preview} alt="Preview" className="w-full rounded-xl object-cover max-h-64"
+              onError={() => setPreviewErrored(true)} />
             <button type="button" onClick={() => onChange(null)} title="Remove"
               className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70">
               <X size={16} />

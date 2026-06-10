@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getPlants, getUpcoming, mediaUrl } from '../api';
+import ImageWithFallback from '../components/ImageWithFallback';
 import { Link } from 'react-router-dom';
 import { Droplets, Sprout, AlertTriangle, CheckCircle, Leaf, FlaskConical } from 'lucide-react';
 import NotificationBanner from '../components/NotificationBanner';
@@ -61,10 +62,9 @@ export default function Dashboard() {
               <Link key={`${u.plant_id}-${u.type}`} to={`/plants/${u.plant_id}`}
                 className="flex items-center justify-between p-3 rounded-xl hover:bg-green-50 border border-gray-100 transition-colors">
                 <div className="flex items-center gap-3">
-                  {u.photo_url
-                    ? <img src={mediaUrl(u.photo_url)} className="w-10 h-10 rounded-full object-cover" alt="" />
-                    : <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center"><Leaf size={18} className="text-green-700" /></div>
-                  }
+                  <ImageWithFallback src={mediaUrl(u.photo_url)} alt=""
+                    className="w-10 h-10 rounded-full object-cover"
+                    fallback={<div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center"><Leaf size={18} className="text-green-700" /></div>} />
                   <div>
                     <div className="font-semibold text-sm text-gray-800">{u.plant_name}</div>
                     <div className="text-xs text-gray-500 flex items-center gap-1">{TYPE_ICON[u.type]} {u.type}</div>
@@ -95,10 +95,9 @@ export default function Dashboard() {
               <Link key={p.id} to={`/plants/${p.id}`}
                 className="border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
                 <div className="h-28 bg-green-100 flex items-center justify-center overflow-hidden">
-                  {p.photo_url
-                    ? <img src={mediaUrl(p.photo_url)} className="w-full h-full object-cover" alt={p.name} />
-                    : <Leaf size={36} className="text-green-300" />
-                  }
+                  <ImageWithFallback src={mediaUrl(p.photo_url)} alt={p.name}
+                    className="w-full h-full object-cover"
+                    fallback={<Leaf size={36} className="text-green-300" />} />
                 </div>
                 <div className="p-2">
                   <div className="font-semibold text-sm text-gray-800 truncate">{p.name}</div>

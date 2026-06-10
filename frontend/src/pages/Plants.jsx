@@ -4,6 +4,7 @@ import { getPlants, createPlant, deletePlant, mediaUrl } from '../api';
 import { Link } from 'react-router-dom';
 import { Plus, Leaf, Droplets, Trash2, X } from 'lucide-react';
 import PhotoCapture from '../components/PhotoCapture';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 function PlantForm({ onClose }) {
   const qc = useQueryClient();
@@ -93,10 +94,9 @@ export default function Plants() {
             <div key={p.id} className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-shadow group">
               <Link to={`/plants/${p.id}`}>
                 <div className="h-36 bg-green-100 flex items-center justify-center overflow-hidden">
-                  {p.photo_url
-                    ? <img src={mediaUrl(p.photo_url)} className="w-full h-full object-cover" alt={p.name} />
-                    : <Leaf size={40} className="text-green-300" />
-                  }
+                  <ImageWithFallback src={mediaUrl(p.photo_url)} alt={p.name}
+                    className="w-full h-full object-cover"
+                    fallback={<Leaf size={40} className="text-green-300" />} />
                 </div>
                 <div className="p-3">
                   <div className="font-semibold text-gray-800 truncate">{p.name}</div>
