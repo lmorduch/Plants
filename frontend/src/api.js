@@ -4,6 +4,9 @@ import { getStoredToken } from './hooks/useAuth';
 
 const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL || ''}/api` });
 
+// Uploaded images are served by the backend, so prefix stored /uploads paths with its origin.
+export const mediaUrl = (path) => (path ? `${import.meta.env.VITE_API_URL || ''}${path}` : '');
+
 // Inject the app JWT and optional Anthropic API key on every request
 api.interceptors.request.use((config) => {
   const token = getStoredToken();

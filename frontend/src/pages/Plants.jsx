@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPlants, createPlant, deletePlant } from '../api';
+import { getPlants, createPlant, deletePlant, mediaUrl } from '../api';
 import { Link } from 'react-router-dom';
 import { Plus, Leaf, Droplets, Trash2, X } from 'lucide-react';
 import PhotoCapture from '../components/PhotoCapture';
@@ -94,7 +94,7 @@ export default function Plants() {
               <Link to={`/plants/${p.id}`}>
                 <div className="h-36 bg-green-100 flex items-center justify-center overflow-hidden">
                   {p.photo_url
-                    ? <img src={p.photo_url} className="w-full h-full object-cover" alt={p.name} />
+                    ? <img src={mediaUrl(p.photo_url)} className="w-full h-full object-cover" alt={p.name} />
                     : <Leaf size={40} className="text-green-300" />
                   }
                 </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant } from '../api';
+import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant, mediaUrl } from '../api';
 import PhotoCapture from '../components/PhotoCapture';
 import PlantAssistant from '../components/PlantAssistant';
 import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp } from 'lucide-react';
@@ -260,7 +260,7 @@ export default function PlantDetail() {
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="h-56 bg-green-100 flex items-center justify-center overflow-hidden">
           {plant.photo_url
-            ? <img src={plant.photo_url} className="w-full h-full object-cover" alt={plant.name} />
+            ? <img src={mediaUrl(plant.photo_url)} className="w-full h-full object-cover" alt={plant.name} />
             : <Leaf size={64} className="text-green-300" />
           }
         </div>
@@ -317,7 +317,7 @@ export default function PlantDetail() {
             {plant.logs.map(log => (
               <div key={log.id} className="bg-white rounded-xl p-3 flex gap-3 border border-gray-100 group items-start">
                 {log.photo_url && (
-                  <img src={log.photo_url} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" alt="" />
+                  <img src={mediaUrl(log.photo_url)} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" alt="" />
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">

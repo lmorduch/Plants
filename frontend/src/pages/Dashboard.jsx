@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getPlants, getUpcoming } from '../api';
+import { getPlants, getUpcoming, mediaUrl } from '../api';
 import { Link } from 'react-router-dom';
 import { Droplets, Sprout, AlertTriangle, CheckCircle, Leaf, FlaskConical } from 'lucide-react';
 import NotificationBanner from '../components/NotificationBanner';
@@ -62,7 +62,7 @@ export default function Dashboard() {
                 className="flex items-center justify-between p-3 rounded-xl hover:bg-green-50 border border-gray-100 transition-colors">
                 <div className="flex items-center gap-3">
                   {u.photo_url
-                    ? <img src={u.photo_url} className="w-10 h-10 rounded-full object-cover" alt="" />
+                    ? <img src={mediaUrl(u.photo_url)} className="w-10 h-10 rounded-full object-cover" alt="" />
                     : <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center"><Leaf size={18} className="text-green-700" /></div>
                   }
                   <div>
@@ -96,7 +96,7 @@ export default function Dashboard() {
                 className="border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
                 <div className="h-28 bg-green-100 flex items-center justify-center overflow-hidden">
                   {p.photo_url
-                    ? <img src={p.photo_url} className="w-full h-full object-cover" alt={p.name} />
+                    ? <img src={mediaUrl(p.photo_url)} className="w-full h-full object-cover" alt={p.name} />
                     : <Leaf size={36} className="text-green-300" />
                   }
                 </div>

@@ -28,7 +28,7 @@ webpush.setVapidDetails(
 
 app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Public routes — no auth required
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
