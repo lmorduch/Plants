@@ -1,6 +1,6 @@
-// ABOUTME: Auth state hook — reads/writes the app JWT and user profile from localStorage.
+// ABOUTME: Shared auth context — holds the app JWT and user profile for the whole tree.
 // ABOUTME: Exposes login (exchange Google credential for app JWT) and logout helpers.
-import { useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
 
 const TOKEN_KEY = 'app_token';
@@ -12,7 +12,9 @@ export function getStoredToken() {
   return localStorage.getItem(TOKEN_KEY) || '';
 }
 
-export function useAuth() {
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
   const [token, setTokenState] = useState(() => localStorage.getItem(TOKEN_KEY) || '');
   const [user, setUserState] = useState(() => {
     const raw = localStorage.getItem(USER_KEY);
@@ -37,5 +39,12 @@ export function useAuth() {
     setUserState(null);
   }, []);
 
-  return { token, user, isAuthenticated: !!token, login, logout };
+  const value = { token, user, isAuthenticated: !!token, login, logout };
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
 }
