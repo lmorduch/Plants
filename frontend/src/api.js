@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { getStoredApiKey } from './hooks/useApiKey';
 import { getStoredToken } from './hooks/useAuth';
 
 const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL || ''}/api` });
@@ -7,12 +6,10 @@ const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL || ''}/api` 
 // Uploaded images are served by the backend, so prefix stored /uploads paths with its origin.
 export const mediaUrl = (path) => (path ? `${import.meta.env.VITE_API_URL || ''}${path}` : '');
 
-// Inject the app JWT and optional Anthropic API key on every request
+// Inject the app JWT on every request
 api.interceptors.request.use((config) => {
   const token = getStoredToken();
   if (token) config.headers['Authorization'] = `Bearer ${token}`;
-  const key = getStoredApiKey();
-  if (key) config.headers['x-anthropic-api-key'] = key;
   return config;
 });
 
@@ -36,5 +33,9 @@ export const analyzePlant = (formData) => api.post('/analyze', formData).then(r 
 
 export const chatWithAssistant = (plantId, messages) =>
   api.post(`/assistant/${plantId}/chat`, { messages }).then(r => r.data);
+
+export const getApiKeyInfo = () => api.get('/settings/api-key').then(r => r.data);
+export const saveApiKey = (apiKey) => api.put('/settings/api-key', { apiKey }).then(r => r.data);
+export const deleteApiKey = () => api.delete('/settings/api-key').then(r => r.data);
 
 export default api;
