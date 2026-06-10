@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant, mediaUrl } from '../api';
+import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant, updatePlant, mediaUrl } from '../api';
 import PhotoCapture from '../components/PhotoCapture';
 import PlantAssistant from '../components/PlantAssistant';
-import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp } from 'lucide-react';
+import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 
 const LOG_TYPES = ['watering', 'fertilizing', 'repotting', 'pruning', 'observation'];
 const TYPE_ICONS = {
@@ -214,14 +214,77 @@ function AddLogModal({ plantId, onClose }) {
   );
 }
 
+// ── Edit Plant Modal ─────────────────────────────────────────────────────────
+function EditPlantModal({ plant, onClose }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: plant.name || '',
+    species: plant.species || '',
+    location: plant.location || '',
+    acquired_date: plant.acquired_date ? plant.acquired_date.split('T')[0] : '',
+    notes: plant.notes || '',
+  });
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+
+  function handlePhoto(file) {
+    setPhoto(file);
+    setPhotoPreview(file ? URL.createObjectURL(file) : null);
+  }
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: () => {
+      const fd = new FormData();
+      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      if (photo) fd.append('photo', photo);
+      return updatePlant(plant.id, fd);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries(['plant', String(plant.id)]);
+      qc.invalidateQueries(['plants']);
+      onClose();
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold text-green-900">Edit Plant</h2>
+          <button onClick={onClose}><X size={20} /></button>
+        </div>
+        <div className="space-y-3">
+          <PhotoCapture onChange={handlePhoto} preview={photoPreview || mediaUrl(plant.photo_url)} className="mb-1" />
+          <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Plant name *"
+            value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Species (optional)"
+            value={form.species} onChange={e => setForm(f => ({ ...f, species: e.target.value }))} />
+          <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Location (e.g. Living room, Balcony)"
+            value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Date acquired</label>
+            <input type="date" className="w-full border rounded-xl px-3 py-2 text-sm"
+              value={form.acquired_date} onChange={e => setForm(f => ({ ...f, acquired_date: e.target.value }))} />
+          </div>
+          <textarea className="w-full border rounded-xl px-3 py-2 text-sm resize-none" placeholder="Notes" rows={2}
+            value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+        </div>
+        <button onClick={() => mutate()} disabled={!form.name || isPending}
+          className="mt-4 w-full bg-green-700 text-white py-2.5 rounded-xl font-semibold hover:bg-green-800 disabled:opacity-50">
+          {isPending ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ───────────────────────────────────────────────────────────────
 export default function PlantDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [showLog, setShowLog] = useState(false);
-  const [photo, setPhoto] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
+  const [showEdit, setShowEdit] = useState(false);
 
   const { data: plant, isLoading } = useQuery({
     queryKey: ['plant', id],
@@ -276,8 +339,12 @@ export default function PlantDetail() {
                 </p>
               )}
             </div>
-            <button onClick={() => { if (confirm(`Delete ${plant.name}?`)) remove(); }}
-              className="text-red-400 hover:text-red-600 p-2"><Trash2 size={18} /></button>
+            <div className="flex items-center">
+              <button onClick={() => setShowEdit(true)} title="Edit plant"
+                className="text-gray-400 hover:text-green-700 p-2"><Pencil size={18} /></button>
+              <button onClick={() => { if (confirm(`Delete ${plant.name}?`)) remove(); }}
+                className="text-red-400 hover:text-red-600 p-2"><Trash2 size={18} /></button>
+            </div>
           </div>
           {plant.notes && (
             <p className="mt-3 text-sm text-gray-600 bg-gray-50 rounded-xl p-3">{plant.notes}</p>
@@ -343,6 +410,7 @@ export default function PlantDetail() {
       <PlantAssistant plantId={id} plantName={plant.name} />
 
       {showLog && <AddLogModal plantId={id} onClose={() => setShowLog(false)} />}
+      {showEdit && <EditPlantModal plant={plant} onClose={() => setShowEdit(false)} />}
     </div>
   );
 }
