@@ -31,6 +31,7 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
 // Public routes — no auth required
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRouter);
 app.get('/api/vapid-public-key', (req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
@@ -45,8 +46,6 @@ app.use('/api/schedule', schedulesRouter);
 app.use('/api/analyze', analyzeRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/assistant', assistantRouter);
-
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 initDb()
   .then(() => {
