@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import pool from '../db.js';
+import { getUserApiKey } from '../userKey.js';
 
 const router = Router();
 
@@ -46,7 +47,7 @@ router.post('/:plantId/chat', async (req, res) => {
   }
 
   // Resolve API key: prefer user-supplied key from header, fall back to server env
-  const apiKey = req.headers['x-anthropic-api-key'] || process.env.ANTHROPIC_API_KEY;
+  const apiKey = req.headers['x-anthropic-api-key'] || await getUserApiKey(req.userId) || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(401).json({
       error: 'No API key. Add your Anthropic API key in Settings, or ask the app owner to configure one.',

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import multer from 'multer';
-import fs from 'fs';
+import { getUserApiKey } from '../userKey.js';
 
 const router = Router();
 
@@ -14,7 +14,7 @@ const upload = multer({
 router.post('/', upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No photo provided' });
 
-  const apiKey = req.headers['x-anthropic-api-key'] || process.env.ANTHROPIC_API_KEY;
+  const apiKey = req.headers['x-anthropic-api-key'] || await getUserApiKey(req.userId) || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(401).json({ error: 'No API key configured. Add your Anthropic API key in Settings.', code: 'NO_API_KEY' });
   }

@@ -13,6 +13,7 @@ import schedulesRouter from './routes/schedules.js';
 import analyzeRouter from './routes/analyze.js';
 import notificationsRouter from './routes/notifications.js';
 import assistantRouter from './routes/assistant.js';
+import settingsRouter from './routes/settings.js';
 import { startCron } from './cron.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -46,6 +47,7 @@ app.use('/api/schedule', schedulesRouter);
 app.use('/api/analyze', analyzeRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/assistant', assistantRouter);
+app.use('/api/settings', settingsRouter);
 
 initDb()
   .then(() => {

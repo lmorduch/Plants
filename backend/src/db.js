@@ -115,6 +115,10 @@ export async function initDb() {
     await ensureIndex(conn, 'plants', 'idx_plants_user', 'user_id');
     await ensureColumn(conn, 'push_subscriptions', 'user_id', 'INT');
     await ensureIndex(conn, 'push_subscriptions', 'idx_push_user', 'user_id');
+
+    // Per-user encrypted Anthropic API key (and a non-sensitive masked hint for display).
+    await ensureColumn(conn, 'users', 'anthropic_key', 'VARCHAR(512)');
+    await ensureColumn(conn, 'users', 'anthropic_key_hint', 'VARCHAR(32)');
   } finally {
     conn.release();
   }
