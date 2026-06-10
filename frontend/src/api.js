@@ -1,10 +1,13 @@
 import axios from 'axios';
 import { getStoredApiKey } from './hooks/useApiKey';
+import { getStoredToken } from './hooks/useAuth';
 
 const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL || ''}/api` });
 
-// Inject the user's API key on every request if present
+// Inject the app JWT and optional Anthropic API key on every request
 api.interceptors.request.use((config) => {
+  const token = getStoredToken();
+  if (token) config.headers['Authorization'] = `Bearer ${token}`;
   const key = getStoredApiKey();
   if (key) config.headers['x-anthropic-api-key'] = key;
   return config;
