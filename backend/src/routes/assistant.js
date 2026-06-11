@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import pool from '../db.js';
 import { getUserApiKey } from '../userKey.js';
 
@@ -46,16 +46,14 @@ router.post('/:plantId/chat', async (req, res) => {
     return res.status(400).json({ error: 'messages array required' });
   }
 
-  // Resolve API key: prefer user-supplied key from header, fall back to server env
-  const apiKey = req.headers['x-anthropic-api-key'] || await getUserApiKey(req.userId) || process.env.ANTHROPIC_API_KEY;
+  const apiKey = req.headers['x-gemini-api-key'] || await getUserApiKey(req.userId) || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(401).json({
-      error: 'No API key. Add your Anthropic API key in Settings, or ask the app owner to configure one.',
+      error: 'No API key. Add your Gemini API key in Settings, or ask the app owner to configure one.',
       code: 'NO_API_KEY',
     });
   }
 
-  // Fetch plant context (scoped to the authenticated user)
   const [[plant]] = await pool.execute(
     'SELECT * FROM plants WHERE id = ? AND user_id = ?',
     [req.params.plantId, req.userId]
@@ -71,20 +69,26 @@ router.post('/:plantId/chat', async (req, res) => {
     [req.params.plantId]
   );
 
-  const client = new Anthropic({ apiKey });
   const systemPrompt = buildSystemPrompt(plant, logs, schedules);
-
-  // Validate message roles (Claude requires alternating user/assistant)
   const validMessages = messages.filter(m => m.role && m.content);
 
-  const response = await client.messages.create({
-    model: 'claude-opus-4-5',
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages: validMessages,
+  // Gemini uses 'user' / 'model' roles; history excludes the final message
+  const history = validMessages.slice(0, -1).map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+  const lastMessage = validMessages[validMessages.length - 1];
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: systemPrompt,
   });
 
-  res.json({ reply: response.content[0].text });
+  const chat = model.startChat({ history });
+  const result = await chat.sendMessage(lastMessage.content);
+
+  res.json({ reply: result.response.text() });
 });
 
 export default router;

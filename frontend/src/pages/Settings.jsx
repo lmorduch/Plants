@@ -31,9 +31,9 @@ export default function Settings() {
             <Key size={20} className="text-amber-600" />
           </div>
           <div>
-            <h2 className="font-bold text-gray-800">Anthropic API Key</h2>
+            <h2 className="font-bold text-gray-800">Google Gemini API Key</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              Power the AI Plant Assistant with your own Claude subscription. Your key is stored encrypted on your account, so it works across all your devices — and is never shown again after you save it.
+              Power the AI Plant Assistant with your own Gemini API key. Your key is stored encrypted on your account, so it works across all your devices — and is never shown again after you save it.
             </p>
           </div>
         </div>
@@ -59,7 +59,7 @@ export default function Settings() {
               type={show ? 'text' : 'password'}
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="sk-ant-api03-..."
+              placeholder="AIza..."
               className="w-full border rounded-xl px-3 py-2.5 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-400"
             />
             <button onClick={() => setShow(s => !s)}
@@ -81,9 +81,9 @@ export default function Settings() {
 
         <div className="text-xs text-gray-400 space-y-1 pt-1 border-t border-gray-100">
           <p>Don't have a key?{' '}
-            <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noreferrer"
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer"
               className="text-green-600 hover:underline inline-flex items-center gap-0.5">
-              Get one at console.anthropic.com <ExternalLink size={10} />
+              Get one free at aistudio.google.com <ExternalLink size={10} />
             </a>
           </p>
           <p>If no key is set here, the app falls back to the server's key (if configured by the host).</p>

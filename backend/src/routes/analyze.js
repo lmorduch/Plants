@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import multer from 'multer';
 import { getUserApiKey } from '../userKey.js';
 
@@ -14,11 +14,10 @@ const upload = multer({
 router.post('/', upload.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No photo provided' });
 
-  const apiKey = req.headers['x-anthropic-api-key'] || await getUserApiKey(req.userId) || process.env.ANTHROPIC_API_KEY;
+  const apiKey = req.headers['x-gemini-api-key'] || await getUserApiKey(req.userId) || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(401).json({ error: 'No API key configured. Add your Anthropic API key in Settings.', code: 'NO_API_KEY' });
+    return res.status(401).json({ error: 'No API key configured. Add your Gemini API key in Settings.', code: 'NO_API_KEY' });
   }
-  const client = new Anthropic({ apiKey });
 
   const { mode = 'identify' } = req.body; // 'identify' | 'health'
   const base64 = req.file.buffer.toString('base64');
@@ -48,28 +47,21 @@ Respond in JSON with keys: common_name, scientific_name, description, care (obje
 
 Respond in JSON with keys: health_score, health_status, observations (array), issues (array), recommendations (array).`;
 
-  const message = await client.messages.create({
-    model: 'claude-opus-4-5',
-    max_tokens: 1024,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-          { type: 'text', text: prompt },
-        ],
-      },
-    ],
-  });
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-  const text = message.content[0].text;
-  // Extract JSON from the response
+  const result = await model.generateContent([
+    { inlineData: { mimeType: mediaType, data: base64 } },
+    prompt,
+  ]);
+
+  const text = result.response.text();
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return res.status(500).json({ error: 'Could not parse AI response', raw: text });
 
   try {
-    const result = JSON.parse(jsonMatch[0]);
-    res.json(result);
+    const parsed = JSON.parse(jsonMatch[0]);
+    res.json(parsed);
   } catch {
     res.status(500).json({ error: 'Invalid JSON from AI', raw: text });
   }
