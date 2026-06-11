@@ -79,16 +79,22 @@ router.post('/:plantId/chat', async (req, res) => {
   }));
   const lastMessage = validMessages[validMessages.length - 1];
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    systemInstruction: systemPrompt,
-  });
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      systemInstruction: systemPrompt,
+    });
 
-  const chat = model.startChat({ history });
-  const result = await chat.sendMessage(lastMessage.content);
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessage(lastMessage.content);
 
-  res.json({ reply: result.response.text() });
+    res.json({ reply: result.response.text() });
+  } catch (err) {
+    console.error('Gemini assistant error:', err);
+    const message = err?.message || 'AI request failed';
+    res.status(500).json({ error: message });
+  }
 });
 
 export default router;

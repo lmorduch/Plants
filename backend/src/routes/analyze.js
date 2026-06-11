@@ -47,23 +47,25 @@ Respond in JSON with keys: common_name, scientific_name, description, care (obje
 
 Respond in JSON with keys: health_score, health_status, observations (array), issues (array), recommendations (array).`;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-  const result = await model.generateContent([
-    { inlineData: { mimeType: mediaType, data: base64 } },
-    prompt,
-  ]);
-
-  const text = result.response.text();
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return res.status(500).json({ error: 'Could not parse AI response', raw: text });
-
   try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+    const result = await model.generateContent([
+      { inlineData: { mimeType: mediaType, data: base64 } },
+      prompt,
+    ]);
+
+    const text = result.response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(500).json({ error: 'Could not parse AI response', raw: text });
+
     const parsed = JSON.parse(jsonMatch[0]);
     res.json(parsed);
-  } catch {
-    res.status(500).json({ error: 'Invalid JSON from AI', raw: text });
+  } catch (err) {
+    console.error('Gemini analyze error:', err);
+    const message = err?.message || 'AI request failed';
+    res.status(500).json({ error: message });
   }
 });
 
