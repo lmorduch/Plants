@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant, updatePlant, mediaUrl } from '../api';
+import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant, updatePlant, analyzeByName, mediaUrl } from '../api';
 import PhotoCapture from '../components/PhotoCapture';
 import ImageWithFallback from '../components/ImageWithFallback';
 import PlantAssistant from '../components/PlantAssistant';
 import Lightbox from '../components/Lightbox';
-import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp, Pencil, Sun, Sparkles, PawPrint } from 'lucide-react';
+import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp, Pencil, Sun, Sparkles, PawPrint, RefreshCw, Check, Ban } from 'lucide-react';
 
 const LOG_TYPES = ['watering', 'fertilizing', 'repotting', 'pruning', 'observation'];
 const TYPE_ICONS = {
@@ -345,6 +345,215 @@ function EditPlantModal({ plant, onClose }) {
   );
 }
 
+// ── Reanalyze Modal ──────────────────────────────────────────────────────────
+function fmt(val) {
+  if (!val) return '—';
+  if (Array.isArray(val)) return val.join(', ');
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
+}
+
+function buildDiffItems(plant, result, schedules) {
+  const w = result.care?.watering;
+  const f = result.care?.fertilizing;
+  const waterSched = schedules?.find(s => s.type === 'watering');
+  const fertSched = schedules?.find(s => s.type === 'fertilizing');
+  const parsedFacts = plant.fun_facts
+    ? (typeof plant.fun_facts === 'string' ? JSON.parse(plant.fun_facts) : plant.fun_facts)
+    : [];
+
+  const items = [
+    {
+      key: 'species',
+      label: 'Species',
+      current: plant.species,
+      suggested: result.scientific_name,
+      apply: (fd) => fd.append('species', result.scientific_name || ''),
+    },
+    {
+      key: 'sun_preference',
+      label: 'Sun preference',
+      current: plant.sun_preference,
+      suggested: result.care?.light,
+      apply: (fd) => fd.append('sun_preference', result.care?.light || ''),
+    },
+    {
+      key: 'pet_safe',
+      label: 'Pet safety',
+      current: plant.pet_safe ? `${plant.pet_safe}${plant.pet_safety_notes ? ` — ${plant.pet_safety_notes}` : ''}` : null,
+      suggested: result.pet_safe ? `${result.pet_safe}${result.pet_safety_notes ? ` — ${result.pet_safety_notes}` : ''}` : null,
+      apply: (fd) => {
+        fd.append('pet_safe', result.pet_safe || '');
+        fd.append('pet_safety_notes', result.pet_safety_notes || '');
+      },
+    },
+    {
+      key: 'watering',
+      label: 'Watering schedule',
+      current: waterSched ? `every ${waterSched.interval_days}d${waterSched.notes ? ` — ${waterSched.notes}` : ''}` : null,
+      suggested: w?.typical_days ? `every ${w.typical_days}d${w.notes ? ` — ${w.notes}` : ''}` : null,
+      isSchedule: true,
+      applySchedule: () => w?.typical_days ? upsertSchedule : null,
+      scheduleType: 'watering',
+      scheduleData: w ? { interval_days: w.typical_days, spring_days: w.spring_days ?? null, summer_days: w.summer_days ?? null, fall_days: w.fall_days ?? null, winter_days: w.winter_days ?? null, notes: w.notes || null } : null,
+    },
+    {
+      key: 'fertilizing',
+      label: 'Fertilizing schedule',
+      current: fertSched ? `every ${fertSched.interval_days}d${fertSched.notes ? ` — ${fertSched.notes}` : ''}` : null,
+      suggested: f?.typical_days ? `every ${f.typical_days}d${f.notes ? ` — ${f.notes}` : ''}` : null,
+      isSchedule: true,
+      scheduleType: 'fertilizing',
+      scheduleData: f ? { interval_days: f.typical_days, spring_days: f.spring_days ?? null, summer_days: f.summer_days ?? null, fall_days: f.fall_days ?? null, winter_days: f.winter_days ?? null, notes: f.notes || null } : null,
+    },
+    {
+      key: 'history_and_origin',
+      label: 'History & origin',
+      current: plant.history_and_origin,
+      suggested: result.history_and_origin,
+      apply: (fd) => fd.append('history_and_origin', result.history_and_origin || ''),
+    },
+    {
+      key: 'fun_facts',
+      label: 'Fun facts',
+      current: parsedFacts.length ? parsedFacts.join(' • ') : null,
+      suggested: result.fun_facts?.length ? result.fun_facts.join(' • ') : null,
+      apply: (fd) => fd.append('fun_facts', JSON.stringify(result.fun_facts || [])),
+    },
+    {
+      key: 'extra_notes',
+      label: 'Extra notes',
+      current: plant.extra_notes,
+      suggested: result.extra_notes,
+      apply: (fd) => fd.append('extra_notes', result.extra_notes || ''),
+    },
+  ];
+
+  // Only show items that have a suggestion and differ from current
+  return items.filter(item => {
+    if (!item.suggested) return false;
+    return fmt(item.current) !== fmt(item.suggested);
+  });
+}
+
+function ReanalyzeModal({ plant, onClose }) {
+  const qc = useQueryClient();
+  const [step, setStep] = useState('loading'); // 'loading' | 'review' | 'saving'
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [accepted, setAccepted] = useState({});
+
+  const schedules = plant.schedules || [];
+  const diffItems = result ? buildDiffItems(plant, result, schedules) : [];
+
+  useEffect(() => {
+    analyzeByName(plant.species || plant.name)
+      .then(data => {
+        setResult(data);
+        const init = {};
+        buildDiffItems(plant, data, schedules).forEach(item => { init[item.key] = true; });
+        setAccepted(init);
+        setStep('review');
+      })
+      .catch(e => {
+        setError(e.response?.data?.error || 'Analysis failed.');
+        setStep('review');
+      });
+  }, []);
+
+  async function save() {
+    setStep('saving');
+    try {
+      const fd = new FormData();
+      // Always carry over required fields
+      fd.append('name', plant.name);
+      fd.append('species', plant.species || '');
+
+      const scheduleUpdates = [];
+      for (const item of diffItems) {
+        if (!accepted[item.key]) continue;
+        if (item.isSchedule) {
+          if (item.scheduleData) scheduleUpdates.push([item.scheduleType, item.scheduleData]);
+        } else {
+          item.apply(fd);
+        }
+      }
+
+      await updatePlant(plant.id, fd);
+      await Promise.all(scheduleUpdates.map(([type, data]) => upsertSchedule(plant.id, type, data)));
+      qc.invalidateQueries(['plant', String(plant.id)]);
+      onClose();
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to save.');
+      setStep('review');
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-bold text-green-900 flex items-center gap-2">
+            <RefreshCw size={18} /> Reanalyze
+          </h2>
+          <button onClick={onClose}><X size={20} /></button>
+        </div>
+
+        {step === 'loading' && (
+          <div className="flex items-center justify-center py-12 gap-3 text-gray-500">
+            <RefreshCw size={18} className="animate-spin" />
+            Fetching latest data for {plant.species || plant.name}…
+          </div>
+        )}
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        {step === 'review' && diffItems.length === 0 && !error && (
+          <p className="text-sm text-gray-500 text-center py-8">Everything looks up to date — no changes suggested.</p>
+        )}
+
+        {step === 'review' && diffItems.length > 0 && (
+          <>
+            <p className="text-xs text-gray-500">{diffItems.length} suggestion{diffItems.length !== 1 ? 's' : ''} — toggle to accept or reject each.</p>
+            <div className="space-y-2">
+              {diffItems.map(item => (
+                <div key={item.key}
+                  className={`rounded-xl border p-3 transition-colors ${accepted[item.key] ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-600 mb-1">{item.label}</p>
+                      {item.current && (
+                        <p className="text-xs text-gray-400 line-through truncate">{fmt(item.current)}</p>
+                      )}
+                      <p className="text-sm text-gray-800 mt-0.5 line-clamp-3">{fmt(item.suggested)}</p>
+                    </div>
+                    <button
+                      onClick={() => setAccepted(a => ({ ...a, [item.key]: !a[item.key] }))}
+                      className={`flex-shrink-0 rounded-full p-1.5 transition-colors ${accepted[item.key] ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                      {accepted[item.key] ? <Check size={14} /> : <Ban size={14} />}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium border text-gray-600 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button onClick={save} disabled={!Object.values(accepted).some(Boolean)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-40">
+                {step === 'saving' ? 'Saving…' : `Apply ${Object.values(accepted).filter(Boolean).length} change${Object.values(accepted).filter(Boolean).length !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ───────────────────────────────────────────────────────────────
 export default function PlantDetail() {
   const { id } = useParams();
@@ -352,6 +561,7 @@ export default function PlantDetail() {
   const qc = useQueryClient();
   const [showLog, setShowLog] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showReanalyze, setShowReanalyze] = useState(false);
   const [lightbox, setLightbox] = useState(null);
 
   const { data: plant, isLoading } = useQuery({
@@ -418,6 +628,8 @@ export default function PlantDetail() {
               )}
             </div>
             <div className="flex items-center">
+              <button onClick={() => setShowReanalyze(true)} title="Reanalyze with AI"
+                className="text-gray-400 hover:text-green-700 p-2"><RefreshCw size={18} /></button>
               <button onClick={() => setShowEdit(true)} title="Edit plant"
                 className="text-gray-400 hover:text-green-700 p-2"><Pencil size={18} /></button>
               <button onClick={() => { if (confirm(`Delete ${plant.name}?`)) remove(); }}
@@ -546,6 +758,7 @@ export default function PlantDetail() {
 
       {showLog && <AddLogModal plantId={id} onClose={() => setShowLog(false)} />}
       {showEdit && <EditPlantModal plant={plant} onClose={() => setShowEdit(false)} />}
+      {showReanalyze && <ReanalyzeModal plant={plant} onClose={() => setShowReanalyze(false)} />}
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
