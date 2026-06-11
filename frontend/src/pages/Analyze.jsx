@@ -33,6 +33,7 @@ function SavePlantModal({ result, file, preview, onClose, onSaved }) {
       fd.append('location', location.trim());
       if (result.care?.light) fd.append('sun_preference', result.care.light);
       if (result.fun_facts?.length) fd.append('fun_facts', JSON.stringify(result.fun_facts));
+      if (result.history_and_origin) fd.append('history_and_origin', result.history_and_origin);
       if (file) fd.append('photo', file);
       const plant = await createPlant(fd);
       onSaved(plant);

@@ -59,13 +59,13 @@ router.get('/:id', async (req, res) => {
 
 // POST /plants
 router.post('/', upload.single('photo'), async (req, res) => {
-  const { name, species, location, acquired_date, notes, sun_preference, fun_facts } = req.body;
+  const { name, species, location, acquired_date, notes, sun_preference, fun_facts, history_and_origin } = req.body;
   const photo_url = req.file ? `/uploads/plants/${req.file.filename}` : null;
   const funFactsJson = fun_facts ? JSON.stringify(typeof fun_facts === 'string' ? JSON.parse(fun_facts) : fun_facts) : null;
 
   const [result] = await pool.execute(
-    'INSERT INTO plants (user_id, name, species, location, acquired_date, notes, photo_url, sun_preference, fun_facts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [req.userId, name, species || null, location || null, acquired_date || null, notes || null, photo_url, sun_preference || null, funFactsJson]
+    'INSERT INTO plants (user_id, name, species, location, acquired_date, notes, photo_url, sun_preference, fun_facts, history_and_origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [req.userId, name, species || null, location || null, acquired_date || null, notes || null, photo_url, sun_preference || null, funFactsJson, history_and_origin || null]
   );
   const [[plant]] = await pool.execute('SELECT * FROM plants WHERE id = ?', [result.insertId]);
   res.status(201).json(plant);
@@ -73,7 +73,7 @@ router.post('/', upload.single('photo'), async (req, res) => {
 
 // PUT /plants/:id
 router.put('/:id', upload.single('photo'), async (req, res) => {
-  const { name, species, location, acquired_date, notes, sun_preference, fun_facts } = req.body;
+  const { name, species, location, acquired_date, notes, sun_preference, fun_facts, history_and_origin } = req.body;
   const [[existing]] = await pool.execute(
     'SELECT * FROM plants WHERE id = ? AND user_id = ?',
     [req.params.id, req.userId]
@@ -84,8 +84,8 @@ router.put('/:id', upload.single('photo'), async (req, res) => {
   const funFactsJson = fun_facts ? JSON.stringify(typeof fun_facts === 'string' ? JSON.parse(fun_facts) : fun_facts) : existing.fun_facts;
 
   await pool.execute(
-    'UPDATE plants SET name=?, species=?, location=?, acquired_date=?, notes=?, photo_url=?, sun_preference=?, fun_facts=? WHERE id=? AND user_id=?',
-    [name, species || null, location || null, acquired_date || null, notes || null, photo_url, sun_preference || null, funFactsJson, req.params.id, req.userId]
+    'UPDATE plants SET name=?, species=?, location=?, acquired_date=?, notes=?, photo_url=?, sun_preference=?, fun_facts=?, history_and_origin=? WHERE id=? AND user_id=?',
+    [name, species || null, location || null, acquired_date || null, notes || null, photo_url, sun_preference || null, funFactsJson, history_and_origin || existing.history_and_origin || null, req.params.id, req.userId]
   );
   const [[plant]] = await pool.execute('SELECT * FROM plants WHERE id = ?', [req.params.id]);
   res.json(plant);

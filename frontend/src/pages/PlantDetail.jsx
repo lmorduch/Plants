@@ -430,6 +430,14 @@ export default function PlantDetail() {
         )}
       </div>
 
+      {/* History & Origin */}
+      {plant.history_and_origin && (
+        <div className="bg-white rounded-2xl shadow-sm p-5">
+          <h2 className="font-bold text-green-900 text-lg mb-2">History &amp; Origin</h2>
+          <p className="text-sm text-gray-600 leading-relaxed">{plant.history_and_origin}</p>
+        </div>
+      )}
+
       {/* AI Assistant */}
       <PlantAssistant plantId={id} plantName={plant.name} />
 

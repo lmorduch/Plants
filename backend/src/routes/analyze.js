@@ -36,8 +36,9 @@ router.post('/', upload.single('photo'), async (req, res) => {
    - Humidity preference
    - Temperature range
 5. **Interesting facts** (1-2 bullet points)
+6. **History and origin** — where the plant originates from, its cultural/historical significance, and how it spread around the world (2-4 sentences)
 
-Respond in JSON with keys: common_name, scientific_name, description, care (object with: light, watering_days, fertilizing_days, humidity, temperature), fun_facts (array).`
+Respond in JSON with keys: common_name, scientific_name, description, care (object with: light, watering_days, fertilizing_days, humidity, temperature), fun_facts (array), history_and_origin (string).`
       : `You are a plant health expert. Analyze this plant photo and provide a health assessment:
 1. **Overall health score** (1-10)
 2. **Health status** (Excellent / Good / Fair / Poor / Critical)

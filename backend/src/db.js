@@ -123,6 +123,7 @@ export async function initDb() {
     // AI-identified plant metadata.
     await ensureColumn(conn, 'plants', 'sun_preference', 'VARCHAR(255)');
     await ensureColumn(conn, 'plants', 'fun_facts', 'JSON');
+    await ensureColumn(conn, 'plants', 'history_and_origin', 'TEXT');
   } finally {
     conn.release();
   }
