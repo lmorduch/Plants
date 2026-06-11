@@ -1,59 +1,240 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPlants, createPlant, deletePlant, mediaUrl } from '../api';
+import { getPlants, createPlant, deletePlant, upsertSchedule, analyzeByName, analyzePlant, mediaUrl } from '../api';
 import { Link } from 'react-router-dom';
-import { Plus, Leaf, Droplets, Trash2, X } from 'lucide-react';
+import { Plus, Leaf, Droplets, Trash2, X, Loader2, Sparkles, Copy } from 'lucide-react';
 import PhotoCapture from '../components/PhotoCapture';
 import ImageWithFallback from '../components/ImageWithFallback';
 
-function PlantForm({ onClose }) {
+function schedulePreview(w) {
+  if (!w?.typical_days) return null;
+  return `every ${w.typical_days}d${w.notes ? ` — ${w.notes}` : ''}`;
+}
+
+// Match species or common name against existing plants (case-insensitive, partial OK)
+function findMatchingPlant(plants, name, species) {
+  const q = (species || name || '').toLowerCase().trim();
+  if (!q) return null;
+  return plants.find(p =>
+    (p.species && p.species.toLowerCase().includes(q)) ||
+    (p.name && p.name.toLowerCase().includes(q)) ||
+    q.includes((p.species || '').toLowerCase()) ||
+    q.includes(p.name.toLowerCase())
+  ) || null;
+}
+
+function AiDataPreview({ result }) {
+  return (
+    <div className="bg-green-50 rounded-xl p-3 space-y-2 text-sm">
+      {result.description && <p className="text-gray-600 italic text-xs">{result.description}</p>}
+      <div className="grid grid-cols-2 gap-1.5 text-xs">
+        {result.care?.light && (
+          <div className="bg-white rounded-lg px-2 py-1.5">
+            <div className="text-gray-400">☀️ Light</div>
+            <div className="font-medium text-gray-700 truncate">{result.care.light}</div>
+          </div>
+        )}
+        {result.care?.watering?.typical_days && (
+          <div className="bg-white rounded-lg px-2 py-1.5">
+            <div className="text-gray-400">💧 Watering</div>
+            <div className="font-medium text-gray-700">every {result.care.watering.typical_days}d</div>
+          </div>
+        )}
+        {result.care?.fertilizing?.typical_days && (
+          <div className="bg-white rounded-lg px-2 py-1.5">
+            <div className="text-gray-400">🌿 Fertilizing</div>
+            <div className="font-medium text-gray-700">every {result.care.fertilizing.typical_days}d</div>
+          </div>
+        )}
+        {result.pet_safe && (
+          <div className={`rounded-lg px-2 py-1.5 ${result.pet_safe === 'safe' ? 'bg-green-100' : result.pet_safe === 'caution' ? 'bg-yellow-100' : 'bg-red-100'}`}>
+            <div className="text-gray-400">🐾 Pets</div>
+            <div className="font-medium capitalize">{result.pet_safe}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlantForm({ plants, onClose }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({ name: '', species: '', location: '', acquired_date: '', notes: '' });
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [aiResult, setAiResult] = useState(null);       // fetched AI data
+  const [aiSource, setAiSource] = useState(null);       // 'api' | 'existing'
+  const [fetchingAi, setFetchingAi] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [matchedPlant, setMatchedPlant] = useState(null); // existing plant with same species
 
   function handlePhoto(file) {
     setPhoto(file);
     setPhotoPreview(file ? URL.createObjectURL(file) : null);
+    setAiResult(null);
+    setAiSource(null);
   }
 
+  function handleNameChange(field, value) {
+    setForm(f => ({ ...f, [field]: value }));
+    setAiResult(null);
+    setAiSource(null);
+
+    // Check for existing plant match whenever name/species changes
+    const updated = { ...form, [field]: value };
+    const match = findMatchingPlant(plants, updated.name, updated.species);
+    setMatchedPlant(match || null);
+  }
+
+  async function fetchAiData() {
+    setFetchingAi(true);
+    setAiError(null);
+    setAiResult(null);
+    setAiSource(null);
+    try {
+      let data;
+      if (photo) {
+        const fd = new FormData();
+        fd.append('photo', photo);
+        fd.append('mode', 'identify');
+        data = await analyzePlant(fd);
+      } else {
+        data = await analyzeByName(form.species || form.name);
+      }
+      // Auto-fill name/species from AI if blank
+      if (!form.name && data.common_name) setForm(f => ({ ...f, name: data.common_name }));
+      if (!form.species && data.scientific_name) setForm(f => ({ ...f, species: data.scientific_name }));
+      setAiResult(data);
+      setAiSource('api');
+    } catch (e) {
+      setAiError(e.response?.data?.error || 'Failed to fetch AI data.');
+    } finally {
+      setFetchingAi(false);
+    }
+  }
+
+  function useExistingPlantData() {
+    if (!matchedPlant) return;
+    // Build a synthetic result from the existing plant's stored data
+    setAiResult({
+      common_name: matchedPlant.name,
+      scientific_name: matchedPlant.species,
+      care: {
+        light: matchedPlant.sun_preference,
+        watering: matchedPlant._waterSched ? { typical_days: matchedPlant._waterSched.interval_days, notes: matchedPlant._waterSched.notes } : null,
+        fertilizing: matchedPlant._fertSched ? { typical_days: matchedPlant._fertSched.interval_days, notes: matchedPlant._fertSched.notes } : null,
+      },
+      pet_safe: matchedPlant.pet_safe,
+      pet_safety_notes: matchedPlant.pet_safety_notes,
+      fun_facts: matchedPlant.fun_facts,
+      history_and_origin: matchedPlant.history_and_origin,
+      extra_notes: matchedPlant.extra_notes,
+      _fromPlantId: matchedPlant.id,
+    });
+    setAiSource('existing');
+  }
+
+  const canFetchAi = !!(form.name.trim() || form.species.trim() || photo);
+
   const { mutate, isPending } = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => v && fd.append(k, v));
       if (photo) fd.append('photo', photo);
-      return createPlant(fd);
+      if (aiResult) {
+        if (aiResult.care?.light) fd.append('sun_preference', aiResult.care.light);
+        if (aiResult.fun_facts?.length) fd.append('fun_facts', JSON.stringify(aiResult.fun_facts));
+        if (aiResult.history_and_origin) fd.append('history_and_origin', aiResult.history_and_origin);
+        if (aiResult.extra_notes) fd.append('extra_notes', aiResult.extra_notes);
+        if (aiResult.pet_safe) fd.append('pet_safe', aiResult.pet_safe);
+        if (aiResult.pet_safety_notes) fd.append('pet_safety_notes', aiResult.pet_safety_notes);
+      }
+      const plant = await createPlant(fd);
+
+      if (aiResult) {
+        const schedulePromises = [];
+        const w = aiResult.care?.watering;
+        const f = aiResult.care?.fertilizing;
+        if (w?.typical_days) schedulePromises.push(upsertSchedule(plant.id, 'watering', {
+          interval_days: w.typical_days,
+          spring_days: w.spring_days ?? null, summer_days: w.summer_days ?? null,
+          fall_days: w.fall_days ?? null, winter_days: w.winter_days ?? null,
+          notes: w.notes || null,
+        }));
+        if (f?.typical_days) schedulePromises.push(upsertSchedule(plant.id, 'fertilizing', {
+          interval_days: f.typical_days,
+          spring_days: f.spring_days ?? null, summer_days: f.summer_days ?? null,
+          fall_days: f.fall_days ?? null, winter_days: f.winter_days ?? null,
+          notes: f.notes || null,
+        }));
+        await Promise.all(schedulePromises);
+      }
+      return plant;
     },
     onSuccess: () => { qc.invalidateQueries(['plants']); onClose(); },
   });
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto space-y-3">
+        <div className="flex justify-between items-center">
           <h2 className="text-lg font-bold text-green-900">Add New Plant</h2>
           <button onClick={onClose}><X size={20} /></button>
         </div>
-        <div className="space-y-3">
-          <PhotoCapture onChange={handlePhoto} preview={photoPreview} className="mb-1" />
-          <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Plant name *"
-            value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Species (optional — or use Analyze to identify)"
-            value={form.species} onChange={e => setForm(f => ({ ...f, species: e.target.value }))} />
-          <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Location (e.g. Living room, Balcony)"
-            value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
-          <div>
-            <label className="text-xs text-gray-500 mb-1 block">Date acquired</label>
-            <input type="date" className="w-full border rounded-xl px-3 py-2 text-sm"
-              value={form.acquired_date} onChange={e => setForm(f => ({ ...f, acquired_date: e.target.value }))} />
+
+        <PhotoCapture onChange={handlePhoto} preview={photoPreview} className="mb-1" />
+
+        <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Plant name *"
+          value={form.name} onChange={e => handleNameChange('name', e.target.value)} />
+        <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Species (optional)"
+          value={form.species} onChange={e => handleNameChange('species', e.target.value)} />
+        <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Location (e.g. Kitchen windowsill)"
+          value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+
+        {/* Existing plant match */}
+        {matchedPlant && !aiResult && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-3">
+            <Copy size={15} className="text-blue-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-blue-800 font-medium">Looks like your {matchedPlant.name}</p>
+              <p className="text-xs text-blue-600 mt-0.5">Copy its care data instead of fetching from AI?</p>
+            </div>
+            <button onClick={useExistingPlantData}
+              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 flex-shrink-0">
+              Copy
+            </button>
           </div>
-          <textarea className="w-full border rounded-xl px-3 py-2 text-sm resize-none" placeholder="Notes" rows={2}
-            value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
-        </div>
+        )}
+
+        {/* Fetch AI data */}
+        {!aiResult && canFetchAi && !matchedPlant && (
+          <button onClick={fetchAiData} disabled={fetchingAi}
+            className="w-full flex items-center justify-center gap-2 border border-green-600 text-green-700 py-2 rounded-xl text-sm font-medium hover:bg-green-50 disabled:opacity-50">
+            {fetchingAi ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            {fetchingAi ? 'Fetching care data…' : 'Fetch AI care data'}
+          </button>
+        )}
+
+        {aiError && <p className="text-xs text-red-600">{aiError}</p>}
+
+        {/* AI result preview */}
+        {aiResult && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-green-700 flex items-center gap-1">
+                {aiSource === 'existing' ? <><Copy size={12} /> Copied from {matchedPlant?.name}</> : <><Sparkles size={12} /> AI care data</>}
+              </p>
+              <button onClick={() => { setAiResult(null); setAiSource(null); }}
+                className="text-xs text-gray-400 hover:text-gray-600">Remove</button>
+            </div>
+            <AiDataPreview result={aiResult} />
+          </div>
+        )}
+
         <button
           onClick={() => mutate()}
           disabled={!form.name || isPending}
-          className="mt-4 w-full bg-green-700 text-white py-2.5 rounded-xl font-semibold hover:bg-green-800 disabled:opacity-50">
+          className="w-full bg-green-700 text-white py-2.5 rounded-xl font-semibold hover:bg-green-800 disabled:opacity-50">
           {isPending ? 'Adding...' : 'Add Plant'}
         </button>
       </div>
@@ -104,15 +285,11 @@ export default function Plants() {
                   {p.location && <div className="text-xs text-gray-500 mt-1 truncate">📍 {p.location}</div>}
                   <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
                     <Droplets size={12} className="text-blue-400" />
-                    {p.last_watered
-                      ? `${new Date(p.last_watered).toLocaleDateString()}`
-                      : 'Never watered'}
+                    {p.last_watered ? new Date(p.last_watered).toLocaleDateString() : 'Never watered'}
                   </div>
                   {p.water_next_due && (
                     <div className={`text-xs mt-0.5 font-medium ${new Date(p.water_next_due) < new Date() ? 'text-red-500' : 'text-green-600'}`}>
-                      {new Date(p.water_next_due) < new Date()
-                        ? '⚠️ Watering overdue'
-                        : `💧 Due ${new Date(p.water_next_due).toLocaleDateString()}`}
+                      {new Date(p.water_next_due) < new Date() ? '⚠️ Watering overdue' : `💧 Due ${new Date(p.water_next_due).toLocaleDateString()}`}
                     </div>
                   )}
                 </div>
@@ -128,7 +305,7 @@ export default function Plants() {
         </div>
       )}
 
-      {showForm && <PlantForm onClose={() => setShowForm(false)} />}
+      {showForm && <PlantForm plants={plants} onClose={() => setShowForm(false)} />}
     </div>
   );
 }

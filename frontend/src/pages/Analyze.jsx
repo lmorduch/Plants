@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { analyzePlant, createPlant, upsertSchedule } from '../api';
+import { analyzePlant, analyzeByName, createPlant, upsertSchedule } from '../api';
 import PhotoCapture from '../components/PhotoCapture';
-import { Microscope, Loader2, Leaf, CheckCircle, AlertTriangle, Plus } from 'lucide-react';
+import { Microscope, Loader2, Leaf, CheckCircle, AlertTriangle, Plus, RotateCcw } from 'lucide-react';
 
 function HealthBar({ score }) {
   const color = score >= 8 ? 'bg-green-500' : score >= 5 ? 'bg-yellow-400' : 'bg-red-500';
@@ -18,6 +18,7 @@ function HealthBar({ score }) {
 
 function SavePlantModal({ result, file, preview, onClose, onSaved }) {
   const [name, setName] = useState(result.common_name || '');
+  const [species, setSpecies] = useState(result.scientific_name || '');
   const [location, setLocation] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -29,7 +30,7 @@ function SavePlantModal({ result, file, preview, onClose, onSaved }) {
     try {
       const fd = new FormData();
       fd.append('name', name.trim());
-      fd.append('species', result.scientific_name || '');
+      fd.append('species', species.trim());
       fd.append('location', location.trim());
       if (result.care?.light) fd.append('sun_preference', result.care.light);
       if (result.fun_facts?.length) fd.append('fun_facts', JSON.stringify(result.fun_facts));
@@ -130,6 +131,9 @@ export default function Analyze() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showSave, setShowSave] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
+  const [correction, setCorrection] = useState('');
+  const [correcting2, setCorrecting2] = useState(false);
 
   function handlePhoto(f) {
     setFile(f);
@@ -148,10 +152,28 @@ export default function Analyze() {
       fd.append('mode', mode);
       const data = await analyzePlant(fd);
       setResult(data);
+      setCorrecting(false);
+      setCorrection('');
     } catch (e) {
       setError(e.response?.data?.error || 'Analysis failed. Please try again.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleCorrect() {
+    if (!correction.trim()) return;
+    setCorrecting2(true);
+    setError(null);
+    try {
+      const data = await analyzeByName(correction.trim());
+      setResult(data);
+      setCorrecting(false);
+      setCorrection('');
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to fetch plant data.');
+    } finally {
+      setCorrecting2(false);
     }
   }
 
@@ -199,6 +221,29 @@ export default function Analyze() {
               <h2 className="text-xl font-bold text-green-900">{result.common_name}</h2>
               <p className="text-gray-500 italic text-sm">{result.scientific_name}</p>
               <p className="text-sm text-gray-600 mt-1">{result.description}</p>
+              {!correcting ? (
+                <button onClick={() => setCorrecting(true)}
+                  className="mt-2 text-xs text-gray-400 hover:text-green-700 flex items-center gap-1">
+                  <RotateCcw size={11} /> Not right? Correct it
+                </button>
+              ) : (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    autoFocus
+                    value={correction}
+                    onChange={e => setCorrection(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleCorrect()}
+                    placeholder="e.g. Shiso, Perilla frutescens"
+                    className="flex-1 border rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                  <button onClick={handleCorrect} disabled={!correction.trim() || correcting2}
+                    className="text-xs bg-green-700 text-white px-3 py-1 rounded-lg hover:bg-green-800 disabled:opacity-50 flex items-center gap-1">
+                    {correcting2 ? <Loader2 size={11} className="animate-spin" /> : null}
+                    Fetch
+                  </button>
+                  <button onClick={() => setCorrecting(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -208,8 +253,8 @@ export default function Analyze() {
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {[
                   ['☀️ Light', result.care.light],
-                  ['💧 Watering', `Every ${result.care.watering_days} days`],
-                  ['🌿 Fertilizing', `Every ${result.care.fertilizing_days} days`],
+                  ['💧 Watering', result.care.watering?.typical_days ? `Every ${result.care.watering.typical_days} days` : null],
+                  ['🌿 Fertilizing', result.care.fertilizing?.typical_days ? `Every ${result.care.fertilizing.typical_days} days` : null],
                   ['💦 Humidity', result.care.humidity],
                   ['🌡️ Temperature', result.care.temperature],
                 ].map(([label, value]) => value && (
