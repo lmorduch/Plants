@@ -119,6 +119,10 @@ export async function initDb() {
     // Per-user encrypted Anthropic API key (and a non-sensitive masked hint for display).
     await ensureColumn(conn, 'users', 'anthropic_key', 'VARCHAR(512)');
     await ensureColumn(conn, 'users', 'anthropic_key_hint', 'VARCHAR(32)');
+
+    // AI-identified plant metadata.
+    await ensureColumn(conn, 'plants', 'sun_preference', 'VARCHAR(255)');
+    await ensureColumn(conn, 'plants', 'fun_facts', 'JSON');
   } finally {
     conn.release();
   }

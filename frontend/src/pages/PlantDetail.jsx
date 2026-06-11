@@ -5,7 +5,7 @@ import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant, updatePlant, 
 import PhotoCapture from '../components/PhotoCapture';
 import ImageWithFallback from '../components/ImageWithFallback';
 import PlantAssistant from '../components/PlantAssistant';
-import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
+import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp, Pencil, Sun, Sparkles } from 'lucide-react';
 
 const LOG_TYPES = ['watering', 'fertilizing', 'repotting', 'pruning', 'observation'];
 const TYPE_ICONS = {
@@ -348,6 +348,28 @@ export default function PlantDetail() {
           </div>
           {plant.notes && (
             <p className="mt-3 text-sm text-gray-600 bg-gray-50 rounded-xl p-3">{plant.notes}</p>
+          )}
+
+          {plant.sun_preference && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 rounded-xl px-3 py-2">
+              <Sun size={15} className="flex-shrink-0" />
+              <span>{plant.sun_preference}</span>
+            </div>
+          )}
+
+          {plant.fun_facts?.length > 0 && (
+            <div className="mt-3 bg-green-50 rounded-xl p-3 space-y-1">
+              <p className="text-xs font-semibold text-green-800 flex items-center gap-1.5 mb-2">
+                <Sparkles size={13} /> Fun Facts
+              </p>
+              <ul className="space-y-1">
+                {(typeof plant.fun_facts === 'string' ? JSON.parse(plant.fun_facts) : plant.fun_facts).map((f, i) => (
+                  <li key={i} className="text-sm text-green-900 flex gap-2">
+                    <span className="text-green-400 flex-shrink-0">•</span>{f}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       </div>
