@@ -31,6 +31,7 @@ export const getUpcoming = (days = 7) => api.get(`/schedule/upcoming?days=${days
 
 export const analyzePlant = (formData) => api.post('/analyze', formData).then(r => r.data);
 export const analyzeByName = (name) => api.post('/analyze/by-name', { name }).then(r => r.data);
+export const analyzeBulk = (formData) => api.post('/analyze/bulk', formData).then(r => r.data);
 
 export const chatWithAssistant = (plantId, messages) =>
   api.post(`/assistant/${plantId}/chat`, { messages }).then(r => r.data);

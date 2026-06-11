@@ -122,4 +122,67 @@ router.post('/by-name', async (req, res) => {
   }
 });
 
+// POST /analyze/bulk — identify multiple plants in one photo with bounding boxes
+router.post('/bulk', upload.single('photo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No photo provided' });
+
+  const apiKey = req.headers['x-gemini-api-key'] || await getUserApiKey(req.userId) || process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(401).json({ error: 'No API key configured.', code: 'NO_API_KEY' });
+
+  const base64 = req.file.buffer.toString('base64');
+  const mediaType = req.file.mimetype;
+
+  const plantSchema = `{
+  "common_name": "",
+  "scientific_name": "",
+  "bbox": { "x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0 },
+  "description": "",
+  "care": {
+    "light": "",
+    "humidity": "",
+    "temperature": "",
+    "watering": { "typical_days": 7, "spring_days": null, "summer_days": null, "fall_days": null, "winter_days": null, "notes": "" },
+    "fertilizing": { "typical_days": 30, "spring_days": null, "summer_days": null, "fall_days": null, "winter_days": null, "notes": "" }
+  },
+  "fun_facts": [],
+  "history_and_origin": "",
+  "pet_safe": "safe",
+  "pet_safety_notes": "",
+  "extra_notes": ""
+}`;
+
+  const prompt = `You are a plant identification expert. Look at this photo and identify every distinct plant you can see.
+
+For each plant:
+1. Identify the species and provide full care information
+2. Provide a bounding box (bbox) as normalized fractions of the image dimensions (0.0 to 1.0):
+   - x1, y1: top-left corner of the plant (x = left→right, y = top→bottom)
+   - x2, y2: bottom-right corner
+   - Make the box tight around the plant's visible foliage/pot
+
+Be conservative: only include plants you can identify with reasonable confidence. If the same plant appears multiple times, include each instance separately.
+
+Respond ONLY in JSON with this exact shape:
+{
+  "plants": [
+    ${plantSchema}
+  ]
+}`;
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent([
+      { inlineData: { mimeType: mediaType, data: base64 } },
+      prompt,
+    ]);
+    const parsed = parseAiJson(result.response.text());
+    if (!Array.isArray(parsed.plants)) return res.status(500).json({ error: 'Unexpected AI response shape' });
+    res.json(parsed);
+  } catch (err) {
+    console.error('Gemini bulk error:', err);
+    res.status(500).json({ error: err?.message || 'AI request failed' });
+  }
+});
+
 export default router;

@@ -1,8 +1,230 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { analyzePlant, analyzeByName, createPlant, upsertSchedule } from '../api';
+import { analyzePlant, analyzeByName, analyzeBulk, createPlant, upsertSchedule } from '../api';
 import PhotoCapture from '../components/PhotoCapture';
-import { Microscope, Loader2, Leaf, CheckCircle, AlertTriangle, Plus, RotateCcw } from 'lucide-react';
+import { Microscope, Loader2, Leaf, CheckCircle, AlertTriangle, Plus, RotateCcw, Layers } from 'lucide-react';
+
+// Crop a bbox region out of an HTMLImageElement using canvas, return object URL
+async function cropPlant(imgEl, bbox) {
+  const { x1, y1, x2, y2 } = bbox;
+  const sw = imgEl.naturalWidth;
+  const sh = imgEl.naturalHeight;
+  const sx = x1 * sw;
+  const sy = y1 * sh;
+  const sw2 = (x2 - x1) * sw;
+  const sh2 = (y2 - y1) * sh;
+  const canvas = document.createElement('canvas');
+  canvas.width = sw2;
+  canvas.height = sh2;
+  canvas.getContext('2d').drawImage(imgEl, sx, sy, sw2, sh2, 0, 0, sw2, sh2);
+  return new Promise(resolve => canvas.toBlob(b => resolve(URL.createObjectURL(b)), 'image/jpeg', 0.92));
+}
+
+async function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function cropAll(preview, plants) {
+  const img = await loadImage(preview);
+  return Promise.all(plants.map(p => cropPlant(img, p.bbox)));
+}
+
+// ── Bulk Load UI ─────────────────────────────────────────────────────────────
+function BulkLoad() {
+  const navigate = useNavigate();
+  const [preview, setPreview] = useState(null);
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [cards, setCards] = useState(null); // [{plant, cropUrl, included, name}]
+  const [saving, setSaving] = useState(false);
+  const [savedCount, setSavedCount] = useState(null);
+
+  function handlePhoto(f) {
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
+    setCards(null);
+    setError(null);
+    setSavedCount(null);
+  }
+
+  async function handleIdentify() {
+    if (!file) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      const { plants } = await analyzeBulk(fd);
+      if (!plants.length) {
+        setError('No plants detected. Try a clearer photo with distinct plants.');
+        setLoading(false);
+        return;
+      }
+      const crops = await cropAll(preview, plants);
+      setCards(plants.map((p, i) => ({
+        plant: p,
+        cropUrl: crops[i],
+        included: true,
+        name: p.common_name || '',
+        location: '',
+      })));
+    } catch (e) {
+      setError(e.response?.data?.error || 'Identification failed.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSaveAll() {
+    const toSave = cards.filter(c => c.included && c.name.trim());
+    if (!toSave.length) return;
+    setSaving(true);
+    let saved = 0;
+    await Promise.all(toSave.map(async card => {
+      try {
+        const fd = new FormData();
+        fd.append('name', card.name.trim());
+        fd.append('species', card.plant.scientific_name || '');
+        fd.append('location', card.location.trim());
+        if (card.plant.care?.light) fd.append('sun_preference', card.plant.care.light);
+        if (card.plant.fun_facts?.length) fd.append('fun_facts', JSON.stringify(card.plant.fun_facts));
+        if (card.plant.history_and_origin) fd.append('history_and_origin', card.plant.history_and_origin);
+        if (card.plant.extra_notes) fd.append('extra_notes', card.plant.extra_notes);
+        if (card.plant.pet_safe) fd.append('pet_safe', card.plant.pet_safe);
+        if (card.plant.pet_safety_notes) fd.append('pet_safety_notes', card.plant.pet_safety_notes);
+        const plant = await createPlant(fd);
+        const w = card.plant.care?.watering;
+        const f = card.plant.care?.fertilizing;
+        const schedules = [];
+        if (w?.typical_days) schedules.push(upsertSchedule(plant.id, 'watering', {
+          interval_days: w.typical_days, spring_days: w.spring_days ?? null,
+          summer_days: w.summer_days ?? null, fall_days: w.fall_days ?? null,
+          winter_days: w.winter_days ?? null, notes: w.notes || null,
+        }));
+        if (f?.typical_days) schedules.push(upsertSchedule(plant.id, 'fertilizing', {
+          interval_days: f.typical_days, spring_days: f.spring_days ?? null,
+          summer_days: f.summer_days ?? null, fall_days: f.fall_days ?? null,
+          winter_days: f.winter_days ?? null, notes: f.notes || null,
+        }));
+        await Promise.all(schedules);
+        saved++;
+      } catch {}
+    }));
+    setSaving(false);
+    setSavedCount(saved);
+  }
+
+  if (savedCount !== null) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+        <CheckCircle size={48} className="text-green-500" />
+        <p className="text-xl font-bold text-green-900">Added {savedCount} plant{savedCount !== 1 ? 's' : ''}!</p>
+        <button onClick={() => navigate('/plants')}
+          className="bg-green-700 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-green-800">
+          View My Plants
+        </button>
+        <button onClick={() => { setCards(null); setFile(null); setPreview(null); setSavedCount(null); }}
+          className="text-sm text-gray-400 hover:text-gray-600">Load another photo</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+        <strong>Experimental:</strong> AI will attempt to locate and identify each plant in your photo. Bounding box accuracy varies — crop previews may be approximate.
+      </div>
+
+      <PhotoCapture preview={preview} onChange={handlePhoto} />
+
+      {file && !cards && (
+        <button onClick={handleIdentify} disabled={loading}
+          className="w-full flex items-center justify-center gap-2 bg-green-700 text-white py-3 rounded-xl font-semibold hover:bg-green-800 disabled:opacity-60">
+          {loading
+            ? <><Loader2 size={18} className="animate-spin" /> Identifying plants…</>
+            : <><Layers size={18} /> Identify All Plants</>}
+        </button>
+      )}
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">{error}</div>}
+
+      {cards && (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">{cards.length} plant{cards.length !== 1 ? 's' : ''} detected — review and save.</p>
+
+          {cards.map((card, i) => (
+            <div key={i}
+              className={`rounded-2xl border p-4 space-y-3 transition-colors ${card.included ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50 opacity-50'}`}>
+              <div className="flex items-start gap-3">
+                {card.cropUrl && (
+                  <img src={card.cropUrl} alt=""
+                    className="w-20 h-20 rounded-xl object-cover flex-shrink-0 border border-gray-200" />
+                )}
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs italic text-gray-400 truncate">{card.plant.scientific_name}</p>
+                    <button
+                      onClick={() => setCards(cs => cs.map((c, j) => j === i ? { ...c, included: !c.included } : c))}
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${card.included ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                      {card.included ? 'Include' : 'Skip'}
+                    </button>
+                  </div>
+                  <input
+                    value={card.name}
+                    onChange={e => setCards(cs => cs.map((c, j) => j === i ? { ...c, name: e.target.value } : c))}
+                    placeholder="Plant name"
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+                  />
+                  <input
+                    value={card.location}
+                    onChange={e => setCards(cs => cs.map((c, j) => j === i ? { ...c, location: e.target.value } : c))}
+                    placeholder="Location (optional)"
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5 text-xs">
+                {card.plant.care?.light && (
+                  <div className="bg-white rounded-lg px-2 py-1.5">
+                    <div className="text-gray-400">☀️ Light</div>
+                    <div className="font-medium text-gray-700 truncate">{card.plant.care.light}</div>
+                  </div>
+                )}
+                {card.plant.care?.watering?.typical_days && (
+                  <div className="bg-white rounded-lg px-2 py-1.5">
+                    <div className="text-gray-400">💧 Water</div>
+                    <div className="font-medium text-gray-700">every {card.plant.care.watering.typical_days}d</div>
+                  </div>
+                )}
+                {card.plant.pet_safe && (
+                  <div className={`rounded-lg px-2 py-1.5 ${card.plant.pet_safe === 'safe' ? 'bg-green-100' : card.plant.pet_safe === 'caution' ? 'bg-yellow-100' : 'bg-red-100'}`}>
+                    <div className="text-gray-400">🐾 Pets</div>
+                    <div className="font-medium capitalize">{card.plant.pet_safe}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <button onClick={handleSaveAll}
+            disabled={saving || !cards.some(c => c.included && c.name.trim())}
+            className="w-full bg-green-700 text-white py-3 rounded-xl font-semibold hover:bg-green-800 disabled:opacity-50 flex items-center justify-center gap-2">
+            {saving
+              ? <><Loader2 size={18} className="animate-spin" /> Saving…</>
+              : <>Add {cards.filter(c => c.included && c.name.trim()).length} Plant{cards.filter(c => c.included && c.name.trim()).length !== 1 ? 's' : ''}</>}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function HealthBar({ score }) {
   const color = score >= 8 ? 'bg-green-500' : score >= 5 ? 'bg-yellow-400' : 'bg-red-500';
@@ -185,10 +407,11 @@ export default function Analyze() {
       <p className="text-gray-500 text-sm">Take a photo or upload one to identify your plant or check its health.</p>
 
       {/* Mode selector */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {[
           { key: 'identify', label: '🌿 Identify Plant' },
           { key: 'health', label: '🏥 Health Check' },
+          { key: 'bulk', label: '📦 Bulk Load' },
         ].map(m => (
           <button key={m.key} onClick={() => { setMode(m.key); setResult(null); }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -198,6 +421,8 @@ export default function Analyze() {
           </button>
         ))}
       </div>
+
+      {mode === 'bulk' ? <BulkLoad /> : <>
 
       <PhotoCapture preview={preview} onChange={handlePhoto} />
 
@@ -335,6 +560,7 @@ export default function Analyze() {
           onSaved={(plant) => navigate(`/plants/${plant.id}`)}
         />
       )}
+      </>}
     </div>
   );
 }
