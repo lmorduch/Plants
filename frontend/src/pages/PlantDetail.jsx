@@ -6,7 +6,7 @@ import PhotoCapture from '../components/PhotoCapture';
 import ImageWithFallback from '../components/ImageWithFallback';
 import PlantAssistant from '../components/PlantAssistant';
 import Lightbox from '../components/Lightbox';
-import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp, Pencil, Sun, Sparkles } from 'lucide-react';
+import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp, Pencil, Sun, Sparkles, PawPrint } from 'lucide-react';
 
 const LOG_TYPES = ['watering', 'fertilizing', 'repotting', 'pruning', 'observation'];
 const TYPE_ICONS = {
@@ -424,6 +424,22 @@ export default function PlantDetail() {
                 className="text-red-400 hover:text-red-600 p-2"><Trash2 size={18} /></button>
             </div>
           </div>
+          {plant.pet_safe && (
+            <div className={`mt-3 flex items-start gap-2 rounded-xl px-3 py-2 text-sm ${
+              plant.pet_safe === 'safe'    ? 'bg-green-50 text-green-800' :
+              plant.pet_safe === 'caution' ? 'bg-yellow-50 text-yellow-800' :
+                                             'bg-red-50 text-red-800'
+            }`}>
+              <PawPrint size={15} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold">
+                  {plant.pet_safe === 'safe' ? 'Pet safe' : plant.pet_safe === 'caution' ? 'Use caution with pets' : 'Toxic to pets'}
+                </span>
+                {plant.pet_safety_notes && <p className="text-xs mt-0.5 opacity-80">{plant.pet_safety_notes}</p>}
+              </div>
+            </div>
+          )}
+
           {plant.notes && (
             <p className="mt-3 text-sm text-gray-600 bg-gray-50 rounded-xl p-3">{plant.notes}</p>
           )}

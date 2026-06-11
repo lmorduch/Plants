@@ -35,6 +35,8 @@ function SavePlantModal({ result, file, preview, onClose, onSaved }) {
       if (result.fun_facts?.length) fd.append('fun_facts', JSON.stringify(result.fun_facts));
       if (result.history_and_origin) fd.append('history_and_origin', result.history_and_origin);
       if (result.extra_notes) fd.append('extra_notes', result.extra_notes);
+      if (result.pet_safe) fd.append('pet_safe', result.pet_safe);
+      if (result.pet_safety_notes) fd.append('pet_safety_notes', result.pet_safety_notes);
       if (file) fd.append('photo', file);
       const plant = await createPlant(fd);
 

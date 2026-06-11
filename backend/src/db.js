@@ -121,6 +121,8 @@ export async function initDb() {
     await ensureColumn(conn, 'users', 'anthropic_key_hint', 'VARCHAR(32)');
 
     // AI-identified plant metadata.
+    await ensureColumn(conn, 'plants', 'pet_safe', "ENUM('safe','toxic','caution')");
+    await ensureColumn(conn, 'plants', 'pet_safety_notes', 'VARCHAR(500)');
     await ensureColumn(conn, 'plants', 'sun_preference', 'VARCHAR(255)');
     await ensureColumn(conn, 'plants', 'fun_facts', 'JSON');
     await ensureColumn(conn, 'plants', 'history_and_origin', 'TEXT');

@@ -36,7 +36,8 @@ router.post('/', upload.single('photo'), async (req, res) => {
 8. Temperature range
 9. Interesting facts (1-2 items)
 10. History and origin (2-4 sentences on where it comes from, cultural significance, how it spread)
-11. Extra notes — any other important care info that doesn't fit above (pest risks, toxicity, pruning, repotting, etc.)
+11. Pet safety — is this plant safe or toxic to cats/dogs? Use "safe", "toxic", or "caution" (mild/situational). Include a brief note on what's affected and symptoms if toxic.
+12. Extra notes — any other important care info that doesn't fit above (pest risks, pruning, repotting, etc.)
 
 Respond ONLY in JSON with this exact shape:
 {
@@ -66,6 +67,8 @@ Respond ONLY in JSON with this exact shape:
   },
   "fun_facts": [],
   "history_and_origin": "",
+  "pet_safe": "safe",
+  "pet_safety_notes": "",
   "extra_notes": ""
 }`
       : `You are a plant health expert. Analyze this plant photo and provide a health assessment:
