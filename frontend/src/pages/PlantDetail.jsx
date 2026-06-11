@@ -5,6 +5,7 @@ import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant, updatePlant, 
 import PhotoCapture from '../components/PhotoCapture';
 import ImageWithFallback from '../components/ImageWithFallback';
 import PlantAssistant from '../components/PlantAssistant';
+import Lightbox from '../components/Lightbox';
 import { Droplets, Leaf, Trash2, Plus, X, FlaskConical, Scissors, Eye, ArrowLeft, Calendar, Bell, BellOff, ChevronDown, ChevronUp, Pencil, Sun, Sparkles } from 'lucide-react';
 
 const LOG_TYPES = ['watering', 'fertilizing', 'repotting', 'pruning', 'observation'];
@@ -61,11 +62,25 @@ function CarePlanCard({ plantId, type, schedule, currentSeason, onSave }) {
         <div className="flex items-center gap-2">
           {icon}
           <span className="font-semibold text-gray-800 capitalize">{type}</span>
-          {schedule && (
-            <span className="text-xs text-gray-500">
-              every {schedule.interval_days}d
-            </span>
-          )}
+          {schedule && (() => {
+            const seasonVal = currentSeason && schedule[`${currentSeason}_days`];
+            const hasSeasonal = SEASONS.some(s => schedule[`${s}_days`]);
+            return (
+              <span className="text-xs text-gray-500 flex items-center gap-1">
+                every {seasonVal ?? schedule.interval_days}d
+                {hasSeasonal && (
+                  <span className={`px-1.5 py-0.5 rounded-full font-medium ${
+                    currentSeason === 'spring' ? 'bg-green-100 text-green-700' :
+                    currentSeason === 'summer' ? 'bg-yellow-100 text-yellow-700' :
+                    currentSeason === 'fall'   ? 'bg-orange-100 text-orange-700' :
+                                                 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {SEASON_LABELS[currentSeason]}
+                  </span>
+                )}
+              </span>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           {schedule?.next_due && (
@@ -337,6 +352,7 @@ export default function PlantDetail() {
   const qc = useQueryClient();
   const [showLog, setShowLog] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [lightbox, setLightbox] = useState(null);
 
   const { data: plant, isLoading } = useQuery({
     queryKey: ['plant', id],
@@ -381,7 +397,10 @@ export default function PlantDetail() {
 
       {/* Plant header */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="h-56 bg-green-100 flex items-center justify-center overflow-hidden">
+        <div
+          className="h-56 bg-green-100 flex items-center justify-center overflow-hidden cursor-zoom-in"
+          onClick={() => plant.photo_url && setLightbox(mediaUrl(plant.photo_url))}
+        >
           <ImageWithFallback src={mediaUrl(plant.photo_url)} alt={plant.name}
             className="w-full h-full object-cover"
             fallback={<Leaf size={64} className="text-green-300" />} />
@@ -466,7 +485,8 @@ export default function PlantDetail() {
               <div key={log.id} className="bg-white rounded-xl p-3 flex gap-3 border border-gray-100 group items-start">
                 {log.photo_url && (
                   <ImageWithFallback src={mediaUrl(log.photo_url)} alt=""
-                    className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                    className="w-16 h-16 rounded-xl object-cover flex-shrink-0 cursor-zoom-in"
+                    onClick={() => setLightbox(mediaUrl(log.photo_url))}
                     fallback={<div className="w-16 h-16 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0"><Leaf size={24} className="text-green-300" /></div>} />
                 )}
                 <div className="flex-1 min-w-0">
@@ -510,6 +530,7 @@ export default function PlantDetail() {
 
       {showLog && <AddLogModal plantId={id} onClose={() => setShowLog(false)} />}
       {showEdit && <EditPlantModal plant={plant} onClose={() => setShowEdit(false)} />}
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }
