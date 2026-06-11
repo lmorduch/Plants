@@ -36,7 +36,76 @@ YOUR ROLE
 - Suggest schedule adjustments if the current plan seems off
 - Be conversational and encouraging — plant care should be fun
 - Keep responses concise unless the user asks for detail
-- If you don't know the species, say so and ask for more info rather than guessing`;
+- If you don't know the species, say so and ask for more info rather than guessing
+- You can set or delete watering/fertilizing schedules directly using the available tools — do so when the user asks you to`;
+}
+
+const scheduleTools = [
+  {
+    functionDeclarations: [
+      {
+        name: 'set_schedule',
+        description: 'Create or update a watering or fertilizing schedule for this plant.',
+        parameters: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['watering', 'fertilizing'],
+              description: 'The type of care schedule to set.',
+            },
+            interval_days: {
+              type: 'integer',
+              description: 'How many days between each care event.',
+            },
+          },
+          required: ['type', 'interval_days'],
+        },
+      },
+      {
+        name: 'delete_schedule',
+        description: 'Remove a watering or fertilizing schedule for this plant.',
+        parameters: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['watering', 'fertilizing'],
+              description: 'The type of care schedule to delete.',
+            },
+          },
+          required: ['type'],
+        },
+      },
+    ],
+  },
+];
+
+async function executeToolCall(name, args, plantId, userId) {
+  if (name === 'set_schedule') {
+    const { type, interval_days } = args;
+    const nextDue = new Date().toISOString().split('T')[0];
+    await pool.execute(
+      `INSERT INTO care_schedules (plant_id, type, interval_days, next_due, notify_enabled, notify_days_before)
+       VALUES (?, ?, ?, ?, 1, 0)
+       ON DUPLICATE KEY UPDATE
+         interval_days = VALUES(interval_days),
+         next_due = VALUES(next_due)`,
+      [plantId, type, interval_days, nextDue]
+    );
+    return { success: true, message: `${type} schedule set to every ${interval_days} days, starting today.` };
+  }
+
+  if (name === 'delete_schedule') {
+    const { type } = args;
+    await pool.execute(
+      'DELETE FROM care_schedules WHERE plant_id = ? AND type = ?',
+      [plantId, type]
+    );
+    return { success: true, message: `${type} schedule removed.` };
+  }
+
+  return { success: false, message: 'Unknown tool.' };
 }
 
 // POST /api/assistant/:plantId/chat
@@ -72,7 +141,6 @@ router.post('/:plantId/chat', async (req, res) => {
   const systemPrompt = buildSystemPrompt(plant, logs, schedules);
   const validMessages = messages.filter(m => m.role && m.content);
 
-  // Gemini uses 'user' / 'model' roles; history excludes the final message
   const history = validMessages.slice(0, -1).map(m => ({
     role: m.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: m.content }],
@@ -84,16 +152,30 @@ router.post('/:plantId/chat', async (req, res) => {
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash-lite',
       systemInstruction: systemPrompt,
+      tools: scheduleTools,
     });
 
     const chat = model.startChat({ history });
-    const result = await chat.sendMessage(lastMessage.content);
+    let result = await chat.sendMessage(lastMessage.content);
+    let response = result.response;
 
-    res.json({ reply: result.response.text() });
+    // Handle tool calls
+    while (response.functionCalls()?.length > 0) {
+      const toolResults = [];
+      for (const call of response.functionCalls()) {
+        const output = await executeToolCall(call.name, call.args, req.params.plantId, req.userId);
+        toolResults.push({
+          functionResponse: { name: call.name, response: output },
+        });
+      }
+      result = await chat.sendMessage(toolResults);
+      response = result.response;
+    }
+
+    res.json({ reply: response.text() });
   } catch (err) {
     console.error('Gemini assistant error:', err);
-    const message = err?.message || 'AI request failed';
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err?.message || 'AI request failed' });
   }
 });
 
