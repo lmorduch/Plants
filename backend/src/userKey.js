@@ -1,6 +1,5 @@
-// ABOUTME: Stores and retrieves each user's Anthropic API key, encrypted at rest.
-// ABOUTME: Keeps a non-sensitive masked hint alongside the ciphertext for display.
-import pool from './db.js';
+// ABOUTME: Stores and retrieves each user's API key, encrypted at rest.
+import { query } from './db.js';
 import { encrypt, decrypt } from './crypto.js';
 
 function maskKey(key) {
@@ -9,28 +8,20 @@ function maskKey(key) {
 }
 
 export async function setUserApiKey(userId, apiKey) {
-  await pool.execute(
-    'UPDATE users SET anthropic_key = ?, anthropic_key_hint = ? WHERE id = ?',
-    [encrypt(apiKey), maskKey(apiKey), userId]
-  );
+  await query('UPDATE users SET anthropic_key = $1, anthropic_key_hint = $2 WHERE id = $3', [encrypt(apiKey), maskKey(apiKey), userId]);
 }
 
 export async function clearUserApiKey(userId) {
-  await pool.execute(
-    'UPDATE users SET anthropic_key = NULL, anthropic_key_hint = NULL WHERE id = ?',
-    [userId]
-  );
+  await query('UPDATE users SET anthropic_key = NULL, anthropic_key_hint = NULL WHERE id = $1', [userId]);
 }
 
-// Returns the decrypted key for use against the Anthropic API, or null if none is set.
 export async function getUserApiKey(userId) {
-  const [[row]] = await pool.execute('SELECT anthropic_key FROM users WHERE id = ?', [userId]);
-  if (!row?.anthropic_key) return null;
-  return decrypt(row.anthropic_key);
+  const rows = await query('SELECT anthropic_key FROM users WHERE id = $1', [userId]);
+  if (!rows[0]?.anthropic_key) return null;
+  return decrypt(rows[0].anthropic_key);
 }
 
-// Returns only display-safe info: whether a key is set and a masked hint.
 export async function getUserKeyInfo(userId) {
-  const [[row]] = await pool.execute('SELECT anthropic_key_hint FROM users WHERE id = ?', [userId]);
-  return { hasKey: !!row?.anthropic_key_hint, keyHint: row?.anthropic_key_hint || '' };
+  const rows = await query('SELECT anthropic_key_hint FROM users WHERE id = $1', [userId]);
+  return { hasKey: !!rows[0]?.anthropic_key_hint, keyHint: rows[0]?.anthropic_key_hint || '' };
 }

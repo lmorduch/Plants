@@ -1,7 +1,7 @@
 // ABOUTME: Care log routes — create, list, delete logs for a plant.
 // ABOUTME: Verifies plant ownership against req.userId before every operation.
 import { Router } from 'express';
-import pool from '../db.js';
+import { query } from '../db.js';
 import multer from 'multer';
 import fs from 'fs';
 
@@ -20,11 +20,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 async function ownedPlant(plantId, userId) {
-  const [[plant]] = await pool.execute(
-    'SELECT id FROM plants WHERE id = ? AND user_id = ?',
-    [plantId, userId]
-  );
-  return plant || null;
+  const rows = await query('SELECT id FROM plants WHERE id = $1 AND user_id = $2', [plantId, userId]);
+  return rows[0] || null;
 }
 
 // GET /plants/:plantId/logs
@@ -32,10 +29,7 @@ router.get('/:plantId/logs', async (req, res) => {
   if (!await ownedPlant(req.params.plantId, req.userId)) {
     return res.status(404).json({ error: 'Plant not found' });
   }
-  const [logs] = await pool.execute(
-    'SELECT * FROM care_logs WHERE plant_id = ? ORDER BY logged_at DESC',
-    [req.params.plantId]
-  );
+  const logs = await query('SELECT * FROM care_logs WHERE plant_id = $1 ORDER BY logged_at DESC', [req.params.plantId]);
   res.json(logs);
 });
 
@@ -48,30 +42,23 @@ router.post('/:plantId/logs', upload.single('photo'), async (req, res) => {
   const photo_url = req.file ? `/uploads/logs/${req.file.filename}` : null;
   const plant_id = req.params.plantId;
 
-  const [result] = await pool.execute(
-    'INSERT INTO care_logs (plant_id, type, notes, photo_url) VALUES (?, ?, ?, ?)',
-    [plant_id, type, notes || null, photo_url]
+  const rows = await query(
+    'INSERT INTO care_logs (plant_id, type, notes, photo_url) VALUES ($1,$2,$3,$4) RETURNING *',
+    [plant_id, type, notes||null, photo_url]
   );
 
-  // Update care schedule last_done and next_due if watering/fertilizing
   if (type === 'watering' || type === 'fertilizing') {
     const today = new Date().toISOString().split('T')[0];
-    const [[schedule]] = await pool.execute(
-      'SELECT * FROM care_schedules WHERE plant_id = ? AND type = ?',
-      [plant_id, type]
-    );
+    const scheduleRows = await query('SELECT * FROM care_schedules WHERE plant_id = $1 AND type = $2', [plant_id, type]);
+    const schedule = scheduleRows[0];
     if (schedule) {
       const nextDue = new Date();
       nextDue.setDate(nextDue.getDate() + schedule.interval_days);
-      await pool.execute(
-        'UPDATE care_schedules SET last_done = ?, next_due = ? WHERE id = ?',
-        [today, nextDue.toISOString().split('T')[0], schedule.id]
-      );
+      await query('UPDATE care_schedules SET last_done = $1, next_due = $2 WHERE id = $3', [today, nextDue.toISOString().split('T')[0], schedule.id]);
     }
   }
 
-  const [[log]] = await pool.execute('SELECT * FROM care_logs WHERE id = ?', [result.insertId]);
-  res.status(201).json(log);
+  res.status(201).json(rows[0]);
 });
 
 // DELETE /plants/:plantId/logs/:logId
@@ -79,11 +66,8 @@ router.delete('/:plantId/logs/:logId', async (req, res) => {
   if (!await ownedPlant(req.params.plantId, req.userId)) {
     return res.status(404).json({ error: 'Plant not found' });
   }
-  const [result] = await pool.execute(
-    'DELETE FROM care_logs WHERE id = ? AND plant_id = ?',
-    [req.params.logId, req.params.plantId]
-  );
-  if (result.affectedRows === 0) return res.status(404).json({ error: 'Log not found' });
+  const rows = await query('DELETE FROM care_logs WHERE id = $1 AND plant_id = $2 RETURNING id', [req.params.logId, req.params.plantId]);
+  if (rows.length === 0) return res.status(404).json({ error: 'Log not found' });
   res.json({ success: true });
 });
 

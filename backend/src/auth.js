@@ -2,7 +2,7 @@
 // ABOUTME: upserts users, and guards routes via the requireAuth middleware.
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
-import pool from './db.js';
+import { query } from './db.js';
 
 const TOKEN_TTL = '30d';
 
@@ -30,7 +30,6 @@ export function requireAuth(req, res, next) {
   }
 }
 
-// Verifies a Google ID token and returns its profile payload.
 export async function verifyGoogleToken(idToken) {
   const ticket = await googleClient.verifyIdToken({
     idToken,
@@ -39,14 +38,13 @@ export async function verifyGoogleToken(idToken) {
   return ticket.getPayload();
 }
 
-// Creates the user if new (matched by Google subject id) and returns the row.
 export async function upsertUser({ sub, email, name, picture }) {
-  await pool.execute(
+  await query(
     `INSERT INTO users (google_sub, email, name, picture)
-     VALUES (?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE email = VALUES(email), name = VALUES(name), picture = VALUES(picture)`,
-    [sub, email, name || null, picture || null]
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (google_sub) DO UPDATE SET email=EXCLUDED.email, name=EXCLUDED.name, picture=EXCLUDED.picture`,
+    [sub, email, name||null, picture||null]
   );
-  const [[user]] = await pool.execute('SELECT * FROM users WHERE google_sub = ?', [sub]);
-  return user;
+  const rows = await query('SELECT * FROM users WHERE google_sub = $1', [sub]);
+  return rows[0];
 }

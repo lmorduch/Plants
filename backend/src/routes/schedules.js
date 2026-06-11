@@ -1,17 +1,14 @@
 // ABOUTME: Care schedule routes — upsert and list schedules per plant, and upcoming dashboard.
 // ABOUTME: Verifies plant ownership against req.userId before every operation.
 import { Router } from 'express';
-import pool from '../db.js';
+import { query } from '../db.js';
 import { getCurrentSeason, effectiveDays } from '../season.js';
 
 const router = Router();
 
 async function ownedPlant(plantId, userId) {
-  const [[plant]] = await pool.execute(
-    'SELECT id FROM plants WHERE id = ? AND user_id = ?',
-    [plantId, userId]
-  );
-  return plant || null;
+  const rows = await query('SELECT id FROM plants WHERE id = $1 AND user_id = $2', [plantId, userId]);
+  return rows[0] || null;
 }
 
 // GET /plants/:plantId/schedules
@@ -19,10 +16,7 @@ router.get('/:plantId/schedules', async (req, res) => {
   if (!await ownedPlant(req.params.plantId, req.userId)) {
     return res.status(404).json({ error: 'Plant not found' });
   }
-  const [schedules] = await pool.execute(
-    'SELECT * FROM care_schedules WHERE plant_id = ?',
-    [req.params.plantId]
-  );
+  const schedules = await query('SELECT * FROM care_schedules WHERE plant_id = $1', [req.params.plantId]);
   res.json({ schedules, current_season: getCurrentSeason() });
 });
 
@@ -35,7 +29,7 @@ router.put('/:plantId/schedules/:type', async (req, res) => {
   const {
     interval_days,
     last_done,
-    notify_enabled = 1,
+    notify_enabled = true,
     notify_days_before = 0,
     notes,
     spring_days,
@@ -45,7 +39,6 @@ router.put('/:plantId/schedules/:type', async (req, res) => {
   } = req.body;
   const { plantId, type } = req.params;
 
-  // If seasonal values supplied, use current season's value as interval_days.
   const seasonal = { spring_days, summer_days, fall_days, winter_days };
   const hasSeasonalData = Object.values(seasonal).some(v => v != null);
   const activeInterval = hasSeasonalData
@@ -60,35 +53,32 @@ router.put('/:plantId/schedules/:type', async (req, res) => {
       })()
     : new Date().toISOString().split('T')[0];
 
-  await pool.execute(
+  await query(
     `INSERT INTO care_schedules
        (plant_id, type, interval_days, last_done, next_due, notify_enabled, notify_days_before,
         notes, spring_days, summer_days, fall_days, winter_days)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE
-       interval_days        = VALUES(interval_days),
-       last_done            = VALUES(last_done),
-       next_due             = VALUES(next_due),
-       notify_enabled       = VALUES(notify_enabled),
-       notify_days_before   = VALUES(notify_days_before),
-       notes                = VALUES(notes),
-       spring_days          = VALUES(spring_days),
-       summer_days          = VALUES(summer_days),
-       fall_days            = VALUES(fall_days),
-       winter_days          = VALUES(winter_days)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     ON CONFLICT (plant_id, type) DO UPDATE SET
+       interval_days      = EXCLUDED.interval_days,
+       last_done          = EXCLUDED.last_done,
+       next_due           = EXCLUDED.next_due,
+       notify_enabled     = EXCLUDED.notify_enabled,
+       notify_days_before = EXCLUDED.notify_days_before,
+       notes              = EXCLUDED.notes,
+       spring_days        = EXCLUDED.spring_days,
+       summer_days        = EXCLUDED.summer_days,
+       fall_days          = EXCLUDED.fall_days,
+       winter_days        = EXCLUDED.winter_days`,
     [
-      plantId, type, activeInterval, last_done || null, nextDue,
-      notify_enabled ? 1 : 0, notify_days_before,
-      notes || null,
-      spring_days ?? null, summer_days ?? null, fall_days ?? null, winter_days ?? null,
+      plantId, type, activeInterval, last_done||null, nextDue,
+      notify_enabled ? true : false, notify_days_before,
+      notes||null,
+      spring_days??null, summer_days??null, fall_days??null, winter_days??null,
     ]
   );
 
-  const [[schedule]] = await pool.execute(
-    'SELECT * FROM care_schedules WHERE plant_id = ? AND type = ?',
-    [plantId, type]
-  );
-  res.json({ schedule, current_season: getCurrentSeason() });
+  const rows = await query('SELECT * FROM care_schedules WHERE plant_id = $1 AND type = $2', [plantId, type]);
+  res.json({ schedule: rows[0], current_season: getCurrentSeason() });
 });
 
 // POST /plants/:plantId/schedules/:type/done  — mark a care task done today
@@ -99,10 +89,8 @@ router.post('/:plantId/schedules/:type/done', async (req, res) => {
   const { plantId, type } = req.params;
   const today = new Date().toISOString().split('T')[0];
 
-  const [[sched]] = await pool.execute(
-    'SELECT * FROM care_schedules WHERE plant_id = ? AND type = ?',
-    [plantId, type]
-  );
+  const schedRows = await query('SELECT * FROM care_schedules WHERE plant_id = $1 AND type = $2', [plantId, type]);
+  const sched = schedRows[0];
   if (!sched) return res.status(404).json({ error: 'No schedule for this type' });
 
   const interval = effectiveDays(sched) ?? sched.interval_days;
@@ -110,14 +98,8 @@ router.post('/:plantId/schedules/:type/done', async (req, res) => {
   nextDue.setDate(nextDue.getDate() + Number(interval));
   const nextDueStr = nextDue.toISOString().split('T')[0];
 
-  await pool.execute(
-    'UPDATE care_schedules SET last_done = ?, next_due = ? WHERE plant_id = ? AND type = ?',
-    [today, nextDueStr, plantId, type]
-  );
-  await pool.execute(
-    'INSERT INTO care_logs (plant_id, type, logged_at, notes) VALUES (?, ?, NOW(), ?)',
-    [plantId, type === 'watering' ? 'watering' : 'fertilizing', null]
-  );
+  await query('UPDATE care_schedules SET last_done = $1, next_due = $2 WHERE plant_id = $3 AND type = $4', [today, nextDueStr, plantId, type]);
+  await query('INSERT INTO care_logs (plant_id, type) VALUES ($1, $2)', [plantId, type]);
 
   res.json({ last_done: today, next_due: nextDueStr });
 });
@@ -125,12 +107,12 @@ router.post('/:plantId/schedules/:type/done', async (req, res) => {
 // GET /schedule/upcoming  — plants due in the next N days for this user
 router.get('/upcoming', async (req, res) => {
   const days = parseInt(req.query.days) || 7;
-  const [rows] = await pool.execute(
+  const rows = await query(
     `SELECT cs.*, p.name AS plant_name, p.photo_url
      FROM care_schedules cs
      JOIN plants p ON p.id = cs.plant_id
-     WHERE p.user_id = ?
-       AND cs.next_due <= DATE_ADD(CURDATE(), INTERVAL ? DAY)
+     WHERE p.user_id = $1
+       AND cs.next_due <= CURRENT_DATE + ($2 || ' days')::INTERVAL
      ORDER BY cs.next_due ASC`,
     [req.userId, days]
   );

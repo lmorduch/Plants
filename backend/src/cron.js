@@ -1,20 +1,19 @@
 // ABOUTME: Daily cron job that sends push notifications for due care schedules.
-// ABOUTME: Iterates over all users and sends each user only their own plant reminders.
 import cron from 'node-cron';
-import pool from './db.js';
+import { query } from './db.js';
 import { sendPushToUser } from './routes/notifications.js';
 
 export function startCron() {
   cron.schedule('0 8 * * *', async () => {
     console.log('[cron] Checking care schedules...');
     try {
-      const [rows] = await pool.execute(`
+      const rows = await query(`
         SELECT cs.*, p.name AS plant_name, p.user_id
         FROM care_schedules cs
         JOIN plants p ON p.id = cs.plant_id
-        WHERE cs.notify_enabled = 1
+        WHERE cs.notify_enabled = true
           AND cs.next_due IS NOT NULL
-          AND DATE(cs.next_due) <= DATE_ADD(CURDATE(), INTERVAL cs.notify_days_before DAY)
+          AND cs.next_due <= CURRENT_DATE + (cs.notify_days_before || ' days')::INTERVAL
           AND p.user_id IS NOT NULL
       `);
 
