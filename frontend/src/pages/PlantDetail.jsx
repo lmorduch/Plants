@@ -1,4 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+
+function useAutoResize(value) {
+  const ref = useRef(null);
+  const resize = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  }, []);
+  useEffect(() => { resize(); }, [value, resize]);
+  return { ref, onInput: resize };
+}
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPlant, addLog, deleteLog, upsertSchedule, deletePlant, updatePlant, analyzeByName, mediaUrl } from '../api';
@@ -31,6 +43,7 @@ function CarePlanCard({ plantId, type, schedule, currentSeason, onSave }) {
   const [notifyEnabled, setNotifyEnabled] = useState(schedule?.notify_enabled ?? true);
   const [notifyDaysBefore, setNotifyDaysBefore] = useState(schedule?.notify_days_before ?? 0);
   const [notes, setNotes] = useState(schedule?.notes ?? '');
+  const notesResize = useAutoResize(notes);
   const [seasonalDays, setSeasonalDays] = useState({
     spring: schedule?.spring_days ?? '',
     summer: schedule?.summer_days ?? '',
@@ -147,6 +160,7 @@ function CarePlanCard({ plantId, type, schedule, currentSeason, onSave }) {
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Care note (shown with reminders)</label>
             <textarea
+              {...notesResize}
               value={notes}
               onChange={e => { setNotes(e.target.value); setDirty(true); }}
               placeholder={`e.g. Water when top inch of soil is dry`}
@@ -230,6 +244,7 @@ function AddLogModal({ plantId, onClose }) {
   const qc = useQueryClient();
   const [type, setType] = useState('watering');
   const [notes, setNotes] = useState('');
+  const notesResize = useAutoResize(notes);
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
 
@@ -271,7 +286,7 @@ function AddLogModal({ plantId, onClose }) {
               </button>
             ))}
           </div>
-          <textarea className="w-full border rounded-xl px-3 py-2 text-sm resize-none" placeholder="Notes (optional)" rows={2}
+          <textarea {...notesResize} className="w-full border rounded-xl px-3 py-2 text-sm resize-none" placeholder="Notes (optional)" rows={2}
             value={notes} onChange={e => setNotes(e.target.value)} />
           <PhotoCapture onChange={handlePhoto} preview={photoPreview} />
         </div>
@@ -294,6 +309,7 @@ function EditPlantModal({ plant, onClose }) {
     acquired_date: plant.acquired_date ? plant.acquired_date.split('T')[0] : '',
     notes: plant.notes || '',
   });
+  const notesResize = useAutoResize(form.notes);
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
 
@@ -336,7 +352,7 @@ function EditPlantModal({ plant, onClose }) {
             <input type="date" className="w-full border rounded-xl px-3 py-2 text-sm"
               value={form.acquired_date} onChange={e => setForm(f => ({ ...f, acquired_date: e.target.value }))} />
           </div>
-          <textarea className="w-full border rounded-xl px-3 py-2 text-sm resize-none" placeholder="Notes" rows={2}
+          <textarea {...notesResize} className="w-full border rounded-xl px-3 py-2 text-sm resize-none" placeholder="Notes" rows={2}
             value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
         </div>
         <button onClick={() => mutate()} disabled={!form.name || isPending}
