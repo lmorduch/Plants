@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPlants, createPlant, deletePlant, upsertSchedule, analyzeByName, analyzePlant, mediaUrl } from '../api';
+import { getPlants, createPlant, deletePlant, upsertSchedule, markScheduleDone, analyzeByName, analyzePlant, mediaUrl } from '../api';
 import { Link } from 'react-router-dom';
-import { Plus, Leaf, Droplets, Trash2, X, Loader2, Sparkles, Copy } from 'lucide-react';
+import { Plus, Leaf, Droplets, Trash2, X, Loader2, Sparkles, Copy, Sprout } from 'lucide-react';
 import PhotoCapture from '../components/PhotoCapture';
 import ImageWithFallback from '../components/ImageWithFallback';
 
@@ -189,7 +189,13 @@ function PlantForm({ plants, onClose }) {
         <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Species (optional)"
           value={form.species} onChange={e => handleNameChange('species', e.target.value)} />
         <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Location (e.g. Kitchen windowsill)"
+          list="location-suggestions"
           value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+        <datalist id="location-suggestions">
+          {plants.map(p => p.location).filter((l, i, a) => l && a.indexOf(l) === i).map(l => (
+            <option key={l} value={l} />
+          ))}
+        </datalist>
 
         {/* Existing plant match */}
         {matchedPlant && !aiResult && (
@@ -244,14 +250,34 @@ function PlantForm({ plants, onClose }) {
 
 export default function Plants() {
   const [showForm, setShowForm] = useState(false);
+  const [tapped, setTapped] = useState({}); // plantId+type -> true (optimistic feedback)
   const qc = useQueryClient();
   const { data: plants = [], isLoading } = useQuery({ queryKey: ['plants'], queryFn: getPlants });
+
   const { mutate: remove } = useMutation({
     mutationFn: deletePlant,
     onSuccess: () => qc.invalidateQueries(['plants']),
   });
 
+  const { mutate: done } = useMutation({
+    mutationFn: ([plantId, type]) => markScheduleDone(plantId, type),
+    onSuccess: (_, [plantId, type]) => {
+      setTapped(t => ({ ...t, [`${plantId}-${type}`]: true }));
+      qc.invalidateQueries(['plants']);
+      qc.invalidateQueries(['upcoming']);
+    },
+  });
+
   if (isLoading) return <div className="text-center py-20 text-green-700">Loading...</div>;
+
+  // Group by location; null/empty goes last under "No room set"
+  const groups = [];
+  const seen = new Map();
+  for (const p of plants) {
+    const key = p.location?.trim() || '';
+    if (!seen.has(key)) { seen.set(key, []); groups.push(key); }
+    seen.get(key).push(p);
+  }
 
   return (
     <div className="space-y-5">
@@ -270,35 +296,75 @@ export default function Plants() {
           <p className="text-sm mt-1">Tap "Add Plant" to get started.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          {plants.map(p => (
-            <div key={p.id} className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-shadow group">
-              <Link to={`/plants/${p.id}`}>
-                <div className="h-36 bg-green-100 flex items-center justify-center overflow-hidden">
-                  <ImageWithFallback src={mediaUrl(p.photo_url)} alt={p.name}
-                    className="w-full h-full object-cover"
-                    fallback={<Leaf size={40} className="text-green-300" />} />
-                </div>
-                <div className="p-3">
-                  <div className="font-semibold text-gray-800 truncate">{p.name}</div>
-                  {p.species && <div className="text-xs text-gray-400 italic truncate">{p.species}</div>}
-                  {p.location && <div className="text-xs text-gray-500 mt-1 truncate">📍 {p.location}</div>}
-                  <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
-                    <Droplets size={12} className="text-blue-400" />
-                    {p.last_watered ? new Date(p.last_watered).toLocaleDateString() : 'Never watered'}
-                  </div>
-                  {p.water_next_due && (
-                    <div className={`text-xs mt-0.5 font-medium ${new Date(p.water_next_due) < new Date() ? 'text-red-500' : 'text-green-600'}`}>
-                      {new Date(p.water_next_due) < new Date() ? '⚠️ Watering overdue' : `💧 Due ${new Date(p.water_next_due).toLocaleDateString()}`}
+        <div className="space-y-6">
+          {groups.map(room => (
+            <div key={room || '__none__'}>
+              {room && (
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 px-1">
+                  📍 {room}
+                </h2>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {seen.get(room).map(p => {
+                  const waterDone = tapped[`${p.id}-watering`];
+                  const fertDone = tapped[`${p.id}-fertilizing`];
+                  const waterOverdue = p.water_next_due && new Date(p.water_next_due) < new Date();
+                  return (
+                    <div key={p.id} className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-shadow group">
+                      <Link to={`/plants/${p.id}`}>
+                        <div className="h-32 bg-green-100 flex items-center justify-center overflow-hidden">
+                          <ImageWithFallback src={mediaUrl(p.photo_url)} alt={p.name}
+                            className="w-full h-full object-cover"
+                            fallback={<Leaf size={40} className="text-green-300" />} />
+                        </div>
+                        <div className="p-3 pb-2">
+                          <div className="font-semibold text-gray-800 truncate">{p.name}</div>
+                          {p.species && <div className="text-xs text-gray-400 italic truncate">{p.species}</div>}
+                          {waterOverdue && !waterDone && (
+                            <div className="text-xs mt-1 font-medium text-red-500">⚠️ Water overdue</div>
+                          )}
+                          {waterDone && (
+                            <div className="text-xs mt-1 font-medium text-green-600">✓ Watered today</div>
+                          )}
+                        </div>
+                      </Link>
+
+                      {/* Quick-action buttons */}
+                      <div className="px-3 pb-3 flex items-center gap-1.5">
+                        {p.water_next_due != null && (
+                          <button
+                            onClick={() => done([p.id, 'watering'])}
+                            disabled={waterDone}
+                            title="Mark watered"
+                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg font-medium transition-colors ${
+                              waterDone
+                                ? 'bg-blue-100 text-blue-400 cursor-default'
+                                : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                            }`}>
+                            <Droplets size={11} /> {waterDone ? 'Done' : 'Watered'}
+                          </button>
+                        )}
+                        {p.fertilize_next_due != null && (
+                          <button
+                            onClick={() => done([p.id, 'fertilizing'])}
+                            disabled={fertDone}
+                            title="Mark fertilized"
+                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg font-medium transition-colors ${
+                              fertDone
+                                ? 'bg-green-100 text-green-400 cursor-default'
+                                : 'bg-green-50 text-green-600 hover:bg-green-100'
+                            }`}>
+                            <Sprout size={11} /> {fertDone ? 'Done' : 'Fed'}
+                          </button>
+                        )}
+                        <button onClick={() => { if (confirm(`Delete ${p.name}?`)) remove(p.id); }}
+                          className="ml-auto text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
-              </Link>
-              <div className="px-3 pb-3">
-                <button onClick={() => { if (confirm(`Delete ${p.name}?`)) remove(p.id); }}
-                  className="text-red-400 hover:text-red-600 text-xs flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Trash2 size={12} /> Delete
-                </button>
+                  );
+                })}
               </div>
             </div>
           ))}

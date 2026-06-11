@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
     LEFT JOIN care_schedules cs_w ON cs_w.plant_id = p.id AND cs_w.type = 'watering'
     LEFT JOIN care_schedules cs_f ON cs_f.plant_id = p.id AND cs_f.type = 'fertilizing'
     WHERE p.user_id = ?
-    ORDER BY p.name
+    ORDER BY p.location IS NULL, p.location, p.name
   `, [req.userId]);
   res.json(plants);
 });

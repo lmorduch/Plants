@@ -26,6 +26,8 @@ export const deleteLog = (plantId, logId) => api.delete(`/plants/${plantId}/logs
 export const getSchedules = (plantId) => api.get(`/plants/${plantId}/schedules`).then(r => r.data);
 export const upsertSchedule = (plantId, type, data) =>
   api.put(`/plants/${plantId}/schedules/${type}`, data).then(r => r.data);
+export const markScheduleDone = (plantId, type) =>
+  api.post(`/plants/${plantId}/schedules/${type}/done`).then(r => r.data);
 
 export const getUpcoming = (days = 7) => api.get(`/schedule/upcoming?days=${days}`).then(r => r.data);
 

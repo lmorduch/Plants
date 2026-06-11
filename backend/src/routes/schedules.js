@@ -91,6 +91,37 @@ router.put('/:plantId/schedules/:type', async (req, res) => {
   res.json({ schedule, current_season: getCurrentSeason() });
 });
 
+// POST /plants/:plantId/schedules/:type/done  — mark a care task done today
+router.post('/:plantId/schedules/:type/done', async (req, res) => {
+  if (!await ownedPlant(req.params.plantId, req.userId)) {
+    return res.status(404).json({ error: 'Plant not found' });
+  }
+  const { plantId, type } = req.params;
+  const today = new Date().toISOString().split('T')[0];
+
+  const [[sched]] = await pool.execute(
+    'SELECT * FROM care_schedules WHERE plant_id = ? AND type = ?',
+    [plantId, type]
+  );
+  if (!sched) return res.status(404).json({ error: 'No schedule for this type' });
+
+  const interval = effectiveDays(sched) ?? sched.interval_days;
+  const nextDue = new Date();
+  nextDue.setDate(nextDue.getDate() + Number(interval));
+  const nextDueStr = nextDue.toISOString().split('T')[0];
+
+  await pool.execute(
+    'UPDATE care_schedules SET last_done = ?, next_due = ? WHERE plant_id = ? AND type = ?',
+    [today, nextDueStr, plantId, type]
+  );
+  await pool.execute(
+    'INSERT INTO care_logs (plant_id, type, logged_at, notes) VALUES (?, ?, NOW(), ?)',
+    [plantId, type === 'watering' ? 'watering' : 'fertilizing', null]
+  );
+
+  res.json({ last_done: today, next_due: nextDueStr });
+});
+
 // GET /schedule/upcoming  — plants due in the next N days for this user
 router.get('/upcoming', async (req, res) => {
   const days = parseInt(req.query.days) || 7;
