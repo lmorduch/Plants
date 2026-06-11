@@ -23,7 +23,10 @@ const SEASON_LABELS = { spring: '🌱 Spring', summer: '☀️ Summer', fall: '�
 // ── Care Plan Card ──────────────────────────────────────────────────────────
 function CarePlanCard({ plantId, type, schedule, currentSeason, onSave }) {
   const [open, setOpen] = useState(!schedule);
-  const [days, setDays] = useState(schedule?.interval_days ?? (type === 'watering' ? 7 : 30));
+  const effectiveDefault = schedule
+    ? (currentSeason && schedule[`${currentSeason}_days`]) ?? schedule.interval_days
+    : (type === 'watering' ? 7 : 30);
+  const [days, setDays] = useState(effectiveDefault);
   const [lastDone, setLastDone] = useState(schedule?.last_done?.split('T')[0] ?? '');
   const [notifyEnabled, setNotifyEnabled] = useState(schedule?.notify_enabled ?? true);
   const [notifyDaysBefore, setNotifyDaysBefore] = useState(schedule?.notify_days_before ?? 0);
@@ -102,7 +105,7 @@ function CarePlanCard({ plantId, type, schedule, currentSeason, onSave }) {
         <div className="px-4 pb-4 space-y-4 border-t border-gray-100 pt-3">
           {/* Interval */}
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Repeat every</label>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Default interval (days)</label>
             <div className="flex items-center gap-2">
               <input type="number" min={1} max={365} value={days}
                 onChange={e => change(setDays)(e.target.value)}
@@ -123,7 +126,7 @@ function CarePlanCard({ plantId, type, schedule, currentSeason, onSave }) {
 
           {/* Seasonal intervals */}
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Seasonal intervals (days) — leave blank to use the default above</label>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Seasonal overrides — blank = use default above</label>
             <div className="grid grid-cols-2 gap-2">
               {SEASONS.map(s => (
                 <div key={s} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 border ${s === currentSeason ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
