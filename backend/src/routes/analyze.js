@@ -49,7 +49,7 @@ Respond in JSON with keys: health_score, health_status, observations (array), is
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const result = await model.generateContent([
       { inlineData: { mimeType: mediaType, data: base64 } },
