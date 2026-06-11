@@ -14,6 +14,7 @@ import analyzeRouter from './routes/analyze.js';
 import notificationsRouter from './routes/notifications.js';
 import assistantRouter from './routes/assistant.js';
 import settingsRouter from './routes/settings.js';
+import { migrateMysqlToPg } from './migrate.js';
 import { startCron } from './cron.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -33,6 +34,19 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Public routes — no auth required
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// Temporary token-guarded one-off MySQL→Postgres migration.
+app.post('/api/admin/migrate-mysql', async (req, res) => {
+  if (!process.env.MIGRATION_TOKEN || req.headers['x-migration-token'] !== process.env.MIGRATION_TOKEN) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  try {
+    res.json(await migrateMysqlToPg());
+  } catch (err) {
+    console.error('Migration failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 app.use('/api/auth', authRouter);
 app.get('/api/vapid-public-key', (req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
