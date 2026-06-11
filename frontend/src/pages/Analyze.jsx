@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { analyzePlant, createPlant } from '../api';
+import { analyzePlant, createPlant, upsertSchedule } from '../api';
 import PhotoCapture from '../components/PhotoCapture';
 import { Microscope, Loader2, Leaf, CheckCircle, AlertTriangle, Plus } from 'lucide-react';
 
@@ -34,8 +34,36 @@ function SavePlantModal({ result, file, preview, onClose, onSaved }) {
       if (result.care?.light) fd.append('sun_preference', result.care.light);
       if (result.fun_facts?.length) fd.append('fun_facts', JSON.stringify(result.fun_facts));
       if (result.history_and_origin) fd.append('history_and_origin', result.history_and_origin);
+      if (result.extra_notes) fd.append('extra_notes', result.extra_notes);
       if (file) fd.append('photo', file);
       const plant = await createPlant(fd);
+
+      // Auto-create schedules from AI data.
+      const schedulePromises = [];
+      const w = result.care?.watering;
+      const f = result.care?.fertilizing;
+      if (w?.typical_days) {
+        schedulePromises.push(upsertSchedule(plant.id, 'watering', {
+          interval_days: w.typical_days,
+          spring_days: w.spring_days ?? null,
+          summer_days: w.summer_days ?? null,
+          fall_days: w.fall_days ?? null,
+          winter_days: w.winter_days ?? null,
+          notes: w.notes || null,
+        }));
+      }
+      if (f?.typical_days) {
+        schedulePromises.push(upsertSchedule(plant.id, 'fertilizing', {
+          interval_days: f.typical_days,
+          spring_days: f.spring_days ?? null,
+          summer_days: f.summer_days ?? null,
+          fall_days: f.fall_days ?? null,
+          winter_days: f.winter_days ?? null,
+          notes: f.notes || null,
+        }));
+      }
+      await Promise.all(schedulePromises);
+
       onSaved(plant);
     } catch (e) {
       setError(e.response?.data?.error || 'Failed to save plant.');

@@ -16,14 +16,29 @@ const TYPE_ICONS = {
   observation: <Eye size={14} className="text-purple-500" />,
 };
 
+const SEASONS = ['spring', 'summer', 'fall', 'winter'];
+const SEASON_LABELS = { spring: '🌱 Spring', summer: '☀️ Summer', fall: '🍂 Fall', winter: '❄️ Winter' };
+
 // ── Care Plan Card ──────────────────────────────────────────────────────────
-function CarePlanCard({ plantId, type, schedule, onSave }) {
-  const [open, setOpen] = useState(!schedule); // open by default if no schedule
+function CarePlanCard({ plantId, type, schedule, currentSeason, onSave }) {
+  const [open, setOpen] = useState(!schedule);
   const [days, setDays] = useState(schedule?.interval_days ?? (type === 'watering' ? 7 : 30));
   const [lastDone, setLastDone] = useState(schedule?.last_done?.split('T')[0] ?? '');
   const [notifyEnabled, setNotifyEnabled] = useState(schedule?.notify_enabled ?? true);
   const [notifyDaysBefore, setNotifyDaysBefore] = useState(schedule?.notify_days_before ?? 0);
+  const [notes, setNotes] = useState(schedule?.notes ?? '');
+  const [seasonalDays, setSeasonalDays] = useState({
+    spring: schedule?.spring_days ?? '',
+    summer: schedule?.summer_days ?? '',
+    fall: schedule?.fall_days ?? '',
+    winter: schedule?.winter_days ?? '',
+  });
   const [dirty, setDirty] = useState(false);
+
+  const hasSeasonalData = SEASONS.some(s => seasonalDays[s] !== '' && seasonalDays[s] != null);
+  const activeDays = hasSeasonalData && currentSeason && seasonalDays[currentSeason] !== ''
+    ? seasonalDays[currentSeason]
+    : days;
 
   const icon = type === 'watering'
     ? <Droplets size={18} className="text-blue-500" />
@@ -34,7 +49,7 @@ function CarePlanCard({ plantId, type, schedule, onSave }) {
   }
 
   const nextDue = lastDone
-    ? (() => { const d = new Date(lastDone); d.setDate(d.getDate() + Number(days)); return d; })()
+    ? (() => { const d = new Date(lastDone); d.setDate(d.getDate() + Number(activeDays)); return d; })()
     : null;
   const isOverdue = nextDue && nextDue < new Date();
 
@@ -91,6 +106,37 @@ function CarePlanCard({ plantId, type, schedule, onSave }) {
             </div>
           </div>
 
+          {/* Seasonal intervals */}
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Seasonal intervals (days) — leave blank to use the default above</label>
+            <div className="grid grid-cols-2 gap-2">
+              {SEASONS.map(s => (
+                <div key={s} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 border ${s === currentSeason ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                  <span className="text-xs text-gray-500 w-16 flex-shrink-0">{SEASON_LABELS[s]}</span>
+                  <input
+                    type="number" min={1} max={365}
+                    value={seasonalDays[s]}
+                    placeholder="—"
+                    onChange={e => { setSeasonalDays(sd => ({ ...sd, [s]: e.target.value })); setDirty(true); }}
+                    className="w-14 text-sm text-center border-0 bg-transparent focus:outline-none"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Care note (shown with reminders)</label>
+            <textarea
+              value={notes}
+              onChange={e => { setNotes(e.target.value); setDirty(true); }}
+              placeholder={`e.g. Water when top inch of soil is dry`}
+              rows={2}
+              className="w-full border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+          </div>
+
           {/* Last done */}
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Last done</label>
@@ -140,6 +186,11 @@ function CarePlanCard({ plantId, type, schedule, onSave }) {
                 last_done: lastDone || undefined,
                 notify_enabled: notifyEnabled ? 1 : 0,
                 notify_days_before: notifyDaysBefore,
+                notes: notes || undefined,
+                spring_days: seasonalDays.spring !== '' ? Number(seasonalDays.spring) : null,
+                summer_days: seasonalDays.summer !== '' ? Number(seasonalDays.summer) : null,
+                fall_days: seasonalDays.fall !== '' ? Number(seasonalDays.fall) : null,
+                winter_days: seasonalDays.winter !== '' ? Number(seasonalDays.winter) : null,
               });
               setDirty(false);
               setOpen(false);
@@ -310,8 +361,16 @@ export default function PlantDetail() {
   if (isLoading) return <div className="text-center py-20 text-green-700">Loading...</div>;
   if (!plant) return <div className="text-center py-20 text-red-500">Plant not found</div>;
 
-  const waterSched = plant.schedules?.find(s => s.type === 'watering');
-  const fertSched = plant.schedules?.find(s => s.type === 'fertilizing');
+  const schedules = plant.schedules || [];
+  const waterSched = schedules.find(s => s.type === 'watering');
+  const fertSched = schedules.find(s => s.type === 'fertilizing');
+
+  // Derive current season client-side (northern hemisphere).
+  const month = new Date().getMonth() + 1;
+  const currentSeason = month >= 3 && month <= 5 ? 'spring'
+    : month >= 6 && month <= 8 ? 'summer'
+    : month >= 9 && month <= 11 ? 'fall'
+    : 'winter';
 
   return (
     <div className="space-y-5 pb-10">
@@ -378,9 +437,9 @@ export default function PlantDetail() {
       <div>
         <h2 className="font-bold text-green-900 mb-3 text-lg">Care Plans</h2>
         <div className="space-y-3">
-          <CarePlanCard plantId={id} type="watering" schedule={waterSched}
+          <CarePlanCard plantId={id} type="watering" schedule={waterSched} currentSeason={currentSeason}
             onSave={(type, data) => saveSchedule([type, data])} />
-          <CarePlanCard plantId={id} type="fertilizing" schedule={fertSched}
+          <CarePlanCard plantId={id} type="fertilizing" schedule={fertSched} currentSeason={currentSeason}
             onSave={(type, data) => saveSchedule([type, data])} />
         </div>
       </div>
@@ -429,6 +488,14 @@ export default function PlantDetail() {
           </div>
         )}
       </div>
+
+      {/* Extra Notes */}
+      {plant.extra_notes && (
+        <div className="bg-amber-50 rounded-2xl p-5">
+          <h2 className="font-bold text-amber-900 text-lg mb-2">Care Notes</h2>
+          <p className="text-sm text-amber-800 leading-relaxed">{plant.extra_notes}</p>
+        </div>
+      )}
 
       {/* History & Origin */}
       {plant.history_and_origin && (

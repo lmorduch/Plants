@@ -26,19 +26,48 @@ router.post('/', upload.single('photo'), async (req, res) => {
   const prompt =
     mode === 'identify'
       ? `You are a plant identification expert. Analyze this plant photo and provide:
-1. **Common name** of the plant
-2. **Scientific name**
-3. **Brief description** (2-3 sentences)
-4. **Care tips**:
-   - Light requirements
-   - Watering frequency (how many days between waterings)
-   - Fertilizing frequency (how many days between feedings)
-   - Humidity preference
-   - Temperature range
-5. **Interesting facts** (1-2 bullet points)
-6. **History and origin** — where the plant originates from, its cultural/historical significance, and how it spread around the world (2-4 sentences)
+1. Common name
+2. Scientific name
+3. Brief description (2-3 sentences)
+4. Light requirements
+5. Watering schedule — typical days between waterings, seasonal variations (spring/summer/fall/winter may differ), and a short care note (e.g. "water when top inch is dry")
+6. Fertilizing schedule — typical days between feedings, seasonal variations, and a short care note
+7. Humidity preference
+8. Temperature range
+9. Interesting facts (1-2 items)
+10. History and origin (2-4 sentences on where it comes from, cultural significance, how it spread)
+11. Extra notes — any other important care info that doesn't fit above (pest risks, toxicity, pruning, repotting, etc.)
 
-Respond in JSON with keys: common_name, scientific_name, description, care (object with: light, watering_days, fertilizing_days, humidity, temperature), fun_facts (array), history_and_origin (string).`
+Respond ONLY in JSON with this exact shape:
+{
+  "common_name": "",
+  "scientific_name": "",
+  "description": "",
+  "care": {
+    "light": "",
+    "humidity": "",
+    "temperature": "",
+    "watering": {
+      "typical_days": 7,
+      "spring_days": null,
+      "summer_days": null,
+      "fall_days": null,
+      "winter_days": null,
+      "notes": ""
+    },
+    "fertilizing": {
+      "typical_days": 30,
+      "spring_days": null,
+      "summer_days": null,
+      "fall_days": null,
+      "winter_days": null,
+      "notes": ""
+    }
+  },
+  "fun_facts": [],
+  "history_and_origin": "",
+  "extra_notes": ""
+}`
       : `You are a plant health expert. Analyze this plant photo and provide a health assessment:
 1. **Overall health score** (1-10)
 2. **Health status** (Excellent / Good / Fair / Poor / Critical)

@@ -4,11 +4,6 @@ import cron from 'node-cron';
 import pool from './db.js';
 import { sendPushToUser } from './routes/notifications.js';
 
-/**
- * Runs every day at 8:00 AM.
- * Finds all care schedule items due today or overdue (with notify_enabled = 1)
- * and sends a push notification per user for each due plant.
- */
 export function startCron() {
   cron.schedule('0 8 * * *', async () => {
     console.log('[cron] Checking care schedules...');
@@ -23,22 +18,22 @@ export function startCron() {
           AND p.user_id IS NOT NULL
       `);
 
-      // Group by user, then by plant, to avoid notification spam
       const byUser = {};
       for (const row of rows) {
         if (!byUser[row.user_id]) byUser[row.user_id] = {};
         const byPlant = byUser[row.user_id];
         if (!byPlant[row.plant_id]) byPlant[row.plant_id] = { name: row.plant_name, tasks: [] };
-        byPlant[row.plant_id].tasks.push(row.type);
+        byPlant[row.plant_id].tasks.push({ type: row.type, notes: row.notes });
       }
 
       let totalSent = 0;
       for (const [userId, plants] of Object.entries(byUser)) {
         for (const { name, tasks } of Object.values(plants)) {
-          const taskList = tasks.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(' & ');
+          const taskList = tasks.map(t => t.type.charAt(0).toUpperCase() + t.type.slice(1)).join(' & ');
+          const hint = tasks[0]?.notes ? ` — ${tasks[0].notes}` : '';
           totalSent += await sendPushToUser(Number(userId), {
             title: `🌿 ${name} needs attention`,
-            body: `${taskList} is due today!`,
+            body: `${taskList} is due today!${hint}`,
             icon: '/favicon.svg',
             tag: `care-${name}`,
             data: { url: '/' },

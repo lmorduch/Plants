@@ -124,6 +124,14 @@ export async function initDb() {
     await ensureColumn(conn, 'plants', 'sun_preference', 'VARCHAR(255)');
     await ensureColumn(conn, 'plants', 'fun_facts', 'JSON');
     await ensureColumn(conn, 'plants', 'history_and_origin', 'TEXT');
+    await ensureColumn(conn, 'plants', 'extra_notes', 'TEXT');
+
+    // Seasonal schedule support.
+    await ensureColumn(conn, 'care_schedules', 'notes', 'TEXT');
+    await ensureColumn(conn, 'care_schedules', 'spring_days', 'INT');
+    await ensureColumn(conn, 'care_schedules', 'summer_days', 'INT');
+    await ensureColumn(conn, 'care_schedules', 'fall_days', 'INT');
+    await ensureColumn(conn, 'care_schedules', 'winter_days', 'INT');
   } finally {
     conn.release();
   }

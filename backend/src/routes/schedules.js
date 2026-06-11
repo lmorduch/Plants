@@ -2,6 +2,7 @@
 // ABOUTME: Verifies plant ownership against req.userId before every operation.
 import { Router } from 'express';
 import pool from '../db.js';
+import { getCurrentSeason, effectiveDays } from '../season.js';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.get('/:plantId/schedules', async (req, res) => {
     'SELECT * FROM care_schedules WHERE plant_id = ?',
     [req.params.plantId]
   );
-  res.json(schedules);
+  res.json({ schedules, current_season: getCurrentSeason() });
 });
 
 // PUT /plants/:plantId/schedules/:type  (upsert)
@@ -30,34 +31,64 @@ router.put('/:plantId/schedules/:type', async (req, res) => {
   if (!await ownedPlant(req.params.plantId, req.userId)) {
     return res.status(404).json({ error: 'Plant not found' });
   }
-  const { interval_days, last_done, notify_enabled = 1, notify_days_before = 0 } = req.body;
+
+  const {
+    interval_days,
+    last_done,
+    notify_enabled = 1,
+    notify_days_before = 0,
+    notes,
+    spring_days,
+    summer_days,
+    fall_days,
+    winter_days,
+  } = req.body;
   const { plantId, type } = req.params;
+
+  // If seasonal values supplied, use current season's value as interval_days.
+  const seasonal = { spring_days, summer_days, fall_days, winter_days };
+  const hasSeasonalData = Object.values(seasonal).some(v => v != null);
+  const activeInterval = hasSeasonalData
+    ? (effectiveDays({ interval_days, ...seasonal }) ?? interval_days)
+    : interval_days;
 
   const nextDue = last_done
     ? (() => {
         const d = new Date(last_done);
-        d.setDate(d.getDate() + Number(interval_days));
+        d.setDate(d.getDate() + Number(activeInterval));
         return d.toISOString().split('T')[0];
       })()
     : new Date().toISOString().split('T')[0];
 
   await pool.execute(
-    `INSERT INTO care_schedules (plant_id, type, interval_days, last_done, next_due, notify_enabled, notify_days_before)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO care_schedules
+       (plant_id, type, interval_days, last_done, next_due, notify_enabled, notify_days_before,
+        notes, spring_days, summer_days, fall_days, winter_days)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
-       interval_days = VALUES(interval_days),
-       last_done = VALUES(last_done),
-       next_due = VALUES(next_due),
-       notify_enabled = VALUES(notify_enabled),
-       notify_days_before = VALUES(notify_days_before)`,
-    [plantId, type, interval_days, last_done || null, nextDue, notify_enabled ? 1 : 0, notify_days_before]
+       interval_days        = VALUES(interval_days),
+       last_done            = VALUES(last_done),
+       next_due             = VALUES(next_due),
+       notify_enabled       = VALUES(notify_enabled),
+       notify_days_before   = VALUES(notify_days_before),
+       notes                = VALUES(notes),
+       spring_days          = VALUES(spring_days),
+       summer_days          = VALUES(summer_days),
+       fall_days            = VALUES(fall_days),
+       winter_days          = VALUES(winter_days)`,
+    [
+      plantId, type, activeInterval, last_done || null, nextDue,
+      notify_enabled ? 1 : 0, notify_days_before,
+      notes || null,
+      spring_days ?? null, summer_days ?? null, fall_days ?? null, winter_days ?? null,
+    ]
   );
 
   const [[schedule]] = await pool.execute(
     'SELECT * FROM care_schedules WHERE plant_id = ? AND type = ?',
     [plantId, type]
   );
-  res.json(schedule);
+  res.json({ schedule, current_season: getCurrentSeason() });
 });
 
 // GET /schedule/upcoming  — plants due in the next N days for this user
