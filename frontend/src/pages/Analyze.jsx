@@ -1,6 +1,8 @@
-import { useState, useRef } from 'react';
-import { analyzePlant } from '../api';
-import { Microscope, Upload, Loader2, Leaf, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { analyzePlant, createPlant } from '../api';
+import PhotoCapture from '../components/PhotoCapture';
+import { Microscope, Loader2, Leaf, CheckCircle, AlertTriangle, Plus } from 'lucide-react';
 
 function HealthBar({ score }) {
   const color = score >= 8 ? 'bg-green-500' : score >= 5 ? 'bg-yellow-400' : 'bg-red-500';
@@ -14,19 +16,91 @@ function HealthBar({ score }) {
   );
 }
 
+function SavePlantModal({ result, file, preview, onClose, onSaved }) {
+  const [name, setName] = useState(result.common_name || '');
+  const [location, setLocation] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('name', name.trim());
+      fd.append('species', result.scientific_name || '');
+      fd.append('location', location.trim());
+      if (file) fd.append('photo', file);
+      const plant = await createPlant(fd);
+      onSaved(plant);
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to save plant.');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          {preview && <img src={preview} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" alt="" />}
+          <div>
+            <h2 className="font-bold text-gray-900">Save as Plant</h2>
+            <p className="text-sm text-gray-500">{result.scientific_name}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Name</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Location (optional)</label>
+            <input
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+              placeholder="e.g. Kitchen windowsill"
+              className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium border text-gray-600 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={!name.trim() || saving}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 disabled:opacity-40">
+            {saving ? 'Saving…' : 'Save Plant'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Analyze() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState('identify');
   const [preview, setPreview] = useState(null);
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const inputRef = useRef();
+  const [showSave, setShowSave] = useState(false);
 
-  function handleFile(f) {
-    if (!f) return;
+  function handlePhoto(f) {
     setFile(f);
-    setPreview(URL.createObjectURL(f));
+    setPreview(f ? URL.createObjectURL(f) : null);
     setResult(null);
     setError(null);
   }
@@ -53,7 +127,7 @@ export default function Analyze() {
       <h1 className="text-2xl font-bold text-green-900 flex items-center gap-2">
         <Microscope size={24} /> Plant Analyzer
       </h1>
-      <p className="text-gray-500 text-sm">Upload a photo to identify your plant or assess its health using AI.</p>
+      <p className="text-gray-500 text-sm">Take a photo or upload one to identify your plant or check its health.</p>
 
       {/* Mode selector */}
       <div className="flex gap-2">
@@ -70,25 +144,7 @@ export default function Analyze() {
         ))}
       </div>
 
-      {/* Upload area */}
-      <div
-        onClick={() => inputRef.current?.click()}
-        onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
-        onDragOver={e => e.preventDefault()}
-        className="border-2 border-dashed border-green-300 rounded-2xl p-8 text-center cursor-pointer hover:bg-green-50 transition-colors"
-      >
-        {preview ? (
-          <img src={preview} alt="Preview" className="max-h-64 mx-auto rounded-xl object-contain" />
-        ) : (
-          <div className="text-gray-400">
-            <Upload size={40} className="mx-auto mb-2 text-green-300" />
-            <p className="font-medium">Drop a photo here or click to upload</p>
-            <p className="text-xs mt-1">JPG, PNG up to 10MB</p>
-          </div>
-        )}
-        <input ref={inputRef} type="file" accept="image/*" className="hidden"
-          onChange={e => handleFile(e.target.files[0])} />
-      </div>
+      <PhotoCapture preview={preview} onChange={handlePhoto} />
 
       {file && (
         <button onClick={handleAnalyze} disabled={loading}
@@ -101,12 +157,12 @@ export default function Analyze() {
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">{error}</div>
       )}
 
-      {/* Results */}
+      {/* Identify results */}
       {result && mode === 'identify' && (
         <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
           <div className="flex items-start gap-4">
             {preview && <img src={preview} className="w-20 h-20 rounded-xl object-cover flex-shrink-0" alt="" />}
-            <div>
+            <div className="flex-1 min-w-0">
               <h2 className="text-xl font-bold text-green-900">{result.common_name}</h2>
               <p className="text-gray-500 italic text-sm">{result.scientific_name}</p>
               <p className="text-sm text-gray-600 mt-1">{result.description}</p>
@@ -141,9 +197,15 @@ export default function Analyze() {
               </ul>
             </div>
           )}
+
+          <button onClick={() => setShowSave(true)}
+            className="w-full flex items-center justify-center gap-2 border-2 border-green-600 text-green-700 py-2.5 rounded-xl font-semibold hover:bg-green-50 transition-colors">
+            <Plus size={18} /> Add to My Plants
+          </button>
         </div>
       )}
 
+      {/* Health results */}
       {result && mode === 'health' && (
         <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
           <div>
@@ -184,6 +246,16 @@ export default function Analyze() {
             </div>
           )}
         </div>
+      )}
+
+      {showSave && result && mode === 'identify' && (
+        <SavePlantModal
+          result={result}
+          file={file}
+          preview={preview}
+          onClose={() => setShowSave(false)}
+          onSaved={(plant) => navigate(`/plants/${plant.id}`)}
+        />
       )}
     </div>
   );
