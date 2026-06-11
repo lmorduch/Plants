@@ -35,6 +35,7 @@ const IDENTIFY_SCHEMA = `{
       "notes": ""
     }
   },
+  "life_cycle": "perennial",
   "fun_facts": [],
   "history_and_origin": "",
   "pet_safe": "safe",
@@ -53,8 +54,9 @@ const IDENTIFY_INSTRUCTIONS = `Provide:
 8. Temperature range
 9. Interesting facts (1-2 items)
 10. History and origin (2-4 sentences on where it comes from, cultural significance, how it spread)
-11. Pet safety — "safe", "toxic", or "caution". Brief note on symptoms if toxic.
-12. Extra notes — pest risks, pruning, repotting, etc.
+11. Life cycle — one of: "annual", "biennial", "perennial", "tender perennial", "bulb", "succulent perennial". Pick the most accurate.
+12. Pet safety — "safe", "toxic", or "caution". Brief note on symptoms if toxic.
+13. Extra notes — pest risks, pruning, repotting, etc.
 
 Respond ONLY in JSON with this exact shape:
 ${IDENTIFY_SCHEMA}`;
@@ -144,6 +146,7 @@ router.post('/bulk', upload.single('photo'), async (req, res) => {
     "watering": { "typical_days": 7, "spring_days": null, "summer_days": null, "fall_days": null, "winter_days": null, "notes": "" },
     "fertilizing": { "typical_days": 30, "spring_days": null, "summer_days": null, "fall_days": null, "winter_days": null, "notes": "" }
   },
+  "life_cycle": "perennial",
   "fun_facts": [],
   "history_and_origin": "",
   "pet_safe": "safe",

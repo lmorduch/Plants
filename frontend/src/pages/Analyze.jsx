@@ -93,6 +93,7 @@ function BulkLoad() {
         fd.append('species', card.plant.scientific_name || '');
         fd.append('location', card.location.trim());
         if (card.plant.care?.light) fd.append('sun_preference', card.plant.care.light);
+        if (card.plant.life_cycle) fd.append('life_cycle', card.plant.life_cycle);
         if (card.plant.fun_facts?.length) fd.append('fun_facts', JSON.stringify(card.plant.fun_facts));
         if (card.plant.history_and_origin) fd.append('history_and_origin', card.plant.history_and_origin);
         if (card.plant.extra_notes) fd.append('extra_notes', card.plant.extra_notes);
@@ -255,6 +256,7 @@ function SavePlantModal({ result, file, preview, onClose, onSaved }) {
       fd.append('species', species.trim());
       fd.append('location', location.trim());
       if (result.care?.light) fd.append('sun_preference', result.care.light);
+      if (result.life_cycle) fd.append('life_cycle', result.life_cycle);
       if (result.fun_facts?.length) fd.append('fun_facts', JSON.stringify(result.fun_facts));
       if (result.history_and_origin) fd.append('history_and_origin', result.history_and_origin);
       if (result.extra_notes) fd.append('extra_notes', result.extra_notes);

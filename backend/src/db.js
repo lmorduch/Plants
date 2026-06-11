@@ -127,6 +127,7 @@ export async function initDb() {
     await ensureColumn(conn, 'plants', 'fun_facts', 'JSON');
     await ensureColumn(conn, 'plants', 'history_and_origin', 'TEXT');
     await ensureColumn(conn, 'plants', 'extra_notes', 'TEXT');
+    await ensureColumn(conn, 'plants', 'life_cycle', 'VARCHAR(64)');
 
     // Seasonal schedule support.
     await ensureColumn(conn, 'care_schedules', 'notes', 'TEXT');

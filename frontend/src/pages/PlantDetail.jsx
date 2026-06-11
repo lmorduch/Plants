@@ -381,6 +381,13 @@ function buildDiffItems(plant, result, schedules) {
       apply: (fd) => fd.append('sun_preference', result.care?.light || ''),
     },
     {
+      key: 'life_cycle',
+      label: 'Life cycle',
+      current: plant.life_cycle,
+      suggested: result.life_cycle,
+      apply: (fd) => fd.append('life_cycle', result.life_cycle || ''),
+    },
+    {
       key: 'pet_safe',
       label: 'Pet safety',
       current: plant.pet_safe ? `${plant.pet_safe}${plant.pet_safety_notes ? ` — ${plant.pet_safety_notes}` : ''}` : null,
@@ -666,18 +673,9 @@ export default function PlantDetail() {
             </div>
           )}
 
-          {plant.fun_facts?.length > 0 && (
-            <div className="mt-3 bg-green-50 rounded-xl p-3 space-y-1">
-              <p className="text-xs font-semibold text-green-800 flex items-center gap-1.5 mb-2">
-                <Sparkles size={13} /> Fun Facts
-              </p>
-              <ul className="space-y-1">
-                {(typeof plant.fun_facts === 'string' ? JSON.parse(plant.fun_facts) : plant.fun_facts).map((f, i) => (
-                  <li key={i} className="text-sm text-green-900 flex gap-2">
-                    <span className="text-green-400 flex-shrink-0">•</span>{f}
-                  </li>
-                ))}
-              </ul>
+          {plant.life_cycle && (
+            <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 bg-violet-50 rounded-full px-3 py-1 capitalize">
+              🌱 {plant.life_cycle}
             </div>
           )}
         </div>
@@ -753,6 +751,22 @@ export default function PlantDetail() {
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <h2 className="font-bold text-green-900 text-lg mb-2">History &amp; Origin</h2>
           <p className="text-sm text-gray-600 leading-relaxed">{plant.history_and_origin}</p>
+        </div>
+      )}
+
+      {/* Fun Facts */}
+      {plant.fun_facts?.length > 0 && (
+        <div className="bg-green-50 rounded-2xl p-5">
+          <h2 className="font-bold text-green-900 text-lg mb-3 flex items-center gap-2">
+            <Sparkles size={18} /> Fun Facts
+          </h2>
+          <ul className="space-y-2">
+            {(typeof plant.fun_facts === 'string' ? JSON.parse(plant.fun_facts) : plant.fun_facts).map((f, i) => (
+              <li key={i} className="text-sm text-green-900 flex gap-2">
+                <span className="text-green-400 flex-shrink-0">•</span>{f}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

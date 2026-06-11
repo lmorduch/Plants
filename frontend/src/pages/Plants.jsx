@@ -143,6 +143,7 @@ function PlantForm({ plants, onClose }) {
       if (photo) fd.append('photo', photo);
       if (aiResult) {
         if (aiResult.care?.light) fd.append('sun_preference', aiResult.care.light);
+        if (aiResult.life_cycle) fd.append('life_cycle', aiResult.life_cycle);
         if (aiResult.fun_facts?.length) fd.append('fun_facts', JSON.stringify(aiResult.fun_facts));
         if (aiResult.history_and_origin) fd.append('history_and_origin', aiResult.history_and_origin);
         if (aiResult.extra_notes) fd.append('extra_notes', aiResult.extra_notes);
