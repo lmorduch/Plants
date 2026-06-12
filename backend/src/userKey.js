@@ -8,7 +8,8 @@ function maskKey(key) {
 }
 
 export async function setUserApiKey(userId, apiKey) {
-  await query('UPDATE users SET anthropic_key = $1, anthropic_key_hint = $2 WHERE id = $3', [encrypt(apiKey), maskKey(apiKey), userId]);
+  const rows = await query('UPDATE users SET anthropic_key = $1, anthropic_key_hint = $2 WHERE id = $3 RETURNING id', [encrypt(apiKey), maskKey(apiKey), userId]);
+  if (rows.length === 0) throw new Error(`No user found with id=${userId} — try logging out and back in`);
 }
 
 export async function clearUserApiKey(userId) {

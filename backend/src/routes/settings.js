@@ -14,7 +14,11 @@ router.get('/api-key', async (req, res) => {
 router.put('/api-key', async (req, res) => {
   const apiKey = (req.body.apiKey || '').trim();
   if (!apiKey) return res.status(400).json({ error: 'apiKey is required' });
-  await setUserApiKey(req.userId, apiKey);
+  try {
+    await setUserApiKey(req.userId, apiKey);
+  } catch (err) {
+    return res.status(404).json({ error: err.message });
+  }
   res.json(await getUserKeyInfo(req.userId));
 });
 
