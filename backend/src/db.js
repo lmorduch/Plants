@@ -3,15 +3,21 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
-const pool = new Pool({
-  host: process.env.PGHOST,
-  port: process.env.PGPORT || 5432,
-  user: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
-  database: process.env.PGDATABASE,
-  max: 10,
-  ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : false,
-});
+const ssl = process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : false;
+
+// Prefer a single DATABASE_URL (Railway's managed Postgres exposes this); fall
+// back to discrete PG* vars for local development.
+const pool = process.env.DATABASE_URL
+  ? new Pool({ connectionString: process.env.DATABASE_URL, max: 10, ssl })
+  : new Pool({
+      host: process.env.PGHOST,
+      port: process.env.PGPORT || 5432,
+      user: process.env.PGUSER,
+      password: process.env.PGPASSWORD,
+      database: process.env.PGDATABASE,
+      max: 10,
+      ssl,
+    });
 
 // Convenience wrapper: returns rows array directly
 export async function query(sql, params) {
@@ -126,6 +132,7 @@ export async function initDb() {
   await ensureColumn('plants', 'history_and_origin', 'TEXT');
   await ensureColumn('plants', 'extra_notes', 'TEXT');
   await ensureColumn('plants', 'life_cycle', 'VARCHAR(64)');
+  await ensureColumn('plants', 'fertilizer_type', 'VARCHAR(255)');
 
   await ensureColumn('care_schedules', 'notes', 'TEXT');
   await ensureColumn('care_schedules', 'spring_days', 'INT');

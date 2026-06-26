@@ -149,6 +149,7 @@ function PlantForm({ plants, onClose }) {
         if (aiResult.extra_notes) fd.append('extra_notes', aiResult.extra_notes);
         if (aiResult.pet_safe) fd.append('pet_safe', aiResult.pet_safe);
         if (aiResult.pet_safety_notes) fd.append('pet_safety_notes', aiResult.pet_safety_notes);
+        if (aiResult.fertilizer_type) fd.append('fertilizer_type', aiResult.fertilizer_type);
       }
       const plant = await createPlant(fd);
 

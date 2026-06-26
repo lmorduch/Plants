@@ -308,6 +308,7 @@ function EditPlantModal({ plant, onClose }) {
     location: plant.location || '',
     acquired_date: plant.acquired_date ? plant.acquired_date.split('T')[0] : '',
     notes: plant.notes || '',
+    fertilizer_type: plant.fertilizer_type || '',
   });
   const notesResize = useAutoResize(form.notes);
   const [photo, setPhoto] = useState(null);
@@ -354,6 +355,8 @@ function EditPlantModal({ plant, onClose }) {
           </div>
           <textarea {...notesResize} className="w-full border rounded-xl px-3 py-2 text-sm resize-none" placeholder="Notes" rows={2}
             value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Fertilizer type (e.g. Balanced liquid 20-20-20)"
+            value={form.fertilizer_type} onChange={e => setForm(f => ({ ...f, fertilizer_type: e.target.value }))} />
         </div>
         <button onClick={() => mutate()} disabled={!form.name || isPending}
           className="mt-4 w-full bg-green-700 text-white py-2.5 rounded-xl font-semibold hover:bg-green-800 disabled:opacity-50">
@@ -445,6 +448,13 @@ function buildDiffItems(plant, result, schedules) {
       current: parsedFacts.length ? parsedFacts.join(' • ') : null,
       suggested: result.fun_facts?.length ? result.fun_facts.join(' • ') : null,
       apply: (fd) => fd.append('fun_facts', JSON.stringify(result.fun_facts || [])),
+    },
+    {
+      key: 'fertilizer_type',
+      label: 'Fertilizer type',
+      current: plant.fertilizer_type,
+      suggested: result.fertilizer_type,
+      apply: (fd) => fd.append('fertilizer_type', result.fertilizer_type || ''),
     },
     {
       key: 'extra_notes',
@@ -692,6 +702,13 @@ export default function PlantDetail() {
           {plant.life_cycle && (
             <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 bg-violet-50 rounded-full px-3 py-1 capitalize">
               🌱 {plant.life_cycle}
+            </div>
+          )}
+
+          {plant.fertilizer_type && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2">
+              <FlaskConical size={15} className="flex-shrink-0" />
+              <span>{plant.fertilizer_type}</span>
             </div>
           )}
         </div>
