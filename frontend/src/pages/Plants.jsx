@@ -129,6 +129,7 @@ function PlantForm({ plants, onClose }) {
       fun_facts: matchedPlant.fun_facts,
       history_and_origin: matchedPlant.history_and_origin,
       extra_notes: matchedPlant.extra_notes,
+      fertilizer_type: matchedPlant.fertilizer_type,
       _fromPlantId: matchedPlant.id,
     });
     setAiSource('existing');

@@ -99,6 +99,7 @@ function BulkLoad() {
         if (card.plant.extra_notes) fd.append('extra_notes', card.plant.extra_notes);
         if (card.plant.pet_safe) fd.append('pet_safe', card.plant.pet_safe);
         if (card.plant.pet_safety_notes) fd.append('pet_safety_notes', card.plant.pet_safety_notes);
+        if (card.plant.fertilizer_type) fd.append('fertilizer_type', card.plant.fertilizer_type);
         const plant = await createPlant(fd);
         const w = card.plant.care?.watering;
         const f = card.plant.care?.fertilizing;
@@ -262,6 +263,7 @@ function SavePlantModal({ result, file, preview, onClose, onSaved }) {
       if (result.extra_notes) fd.append('extra_notes', result.extra_notes);
       if (result.pet_safe) fd.append('pet_safe', result.pet_safe);
       if (result.pet_safety_notes) fd.append('pet_safety_notes', result.pet_safety_notes);
+      if (result.fertilizer_type) fd.append('fertilizer_type', result.fertilizer_type);
       if (file) fd.append('photo', file);
       const plant = await createPlant(fd);
 
