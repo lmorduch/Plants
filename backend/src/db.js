@@ -132,6 +132,7 @@ export async function initDb() {
   await ensureColumn('plants', 'history_and_origin', 'TEXT');
   await ensureColumn('plants', 'extra_notes', 'TEXT');
   await ensureColumn('plants', 'life_cycle', 'VARCHAR(64)');
+  await ensureColumn('plants', 'fertilizer_type', 'VARCHAR(255)');
 
   await ensureColumn('care_schedules', 'notes', 'TEXT');
   await ensureColumn('care_schedules', 'spring_days', 'INT');

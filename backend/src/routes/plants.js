@@ -50,21 +50,21 @@ router.get('/:id', async (req, res) => {
 
 // POST /plants
 router.post('/', upload.single('photo'), async (req, res) => {
-  const { name, species, location, acquired_date, notes, sun_preference, fun_facts, history_and_origin, extra_notes, pet_safe, pet_safety_notes, life_cycle } = req.body;
+  const { name, species, location, acquired_date, notes, sun_preference, fun_facts, history_and_origin, extra_notes, pet_safe, pet_safety_notes, life_cycle, fertilizer_type } = req.body;
   const photo_url = req.file ? `/uploads/plants/${req.file.filename}` : null;
   const funFactsJson = fun_facts ? JSON.stringify(typeof fun_facts === 'string' ? JSON.parse(fun_facts) : fun_facts) : null;
 
   const rows = await query(
-    `INSERT INTO plants (user_id, name, species, location, acquired_date, notes, photo_url, sun_preference, fun_facts, history_and_origin, extra_notes, pet_safe, pet_safety_notes, life_cycle)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-    [req.userId, name, species||null, location||null, acquired_date||null, notes||null, photo_url, sun_preference||null, funFactsJson, history_and_origin||null, extra_notes||null, pet_safe||null, pet_safety_notes||null, life_cycle||null]
+    `INSERT INTO plants (user_id, name, species, location, acquired_date, notes, photo_url, sun_preference, fun_facts, history_and_origin, extra_notes, pet_safe, pet_safety_notes, life_cycle, fertilizer_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+    [req.userId, name, species||null, location||null, acquired_date||null, notes||null, photo_url, sun_preference||null, funFactsJson, history_and_origin||null, extra_notes||null, pet_safe||null, pet_safety_notes||null, life_cycle||null, fertilizer_type||null]
   );
   res.status(201).json(rows[0]);
 });
 
 // PUT /plants/:id
 router.put('/:id', upload.single('photo'), async (req, res) => {
-  const { name, species, location, acquired_date, notes, sun_preference, fun_facts, history_and_origin, extra_notes, pet_safe, pet_safety_notes, life_cycle } = req.body;
+  const { name, species, location, acquired_date, notes, sun_preference, fun_facts, history_and_origin, extra_notes, pet_safe, pet_safety_notes, life_cycle, fertilizer_type } = req.body;
   const existing = (await query('SELECT * FROM plants WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]))[0];
   if (!existing) return res.status(404).json({ error: 'Plant not found' });
 
@@ -74,12 +74,13 @@ router.put('/:id', upload.single('photo'), async (req, res) => {
   const rows = await query(
     `UPDATE plants SET name=$1, species=$2, location=$3, acquired_date=$4, notes=$5, photo_url=$6,
      sun_preference=$7, fun_facts=$8, history_and_origin=$9, extra_notes=$10, pet_safe=$11,
-     pet_safety_notes=$12, life_cycle=$13, updated_at=NOW()
-     WHERE id=$14 AND user_id=$15 RETURNING *`,
+     pet_safety_notes=$12, life_cycle=$13, fertilizer_type=$14, updated_at=NOW()
+     WHERE id=$15 AND user_id=$16 RETURNING *`,
     [name, species||null, location||null, acquired_date||null, notes||null, photo_url,
      sun_preference||null, funFactsJson, history_and_origin||existing.history_and_origin||null,
      extra_notes||existing.extra_notes||null, pet_safe||existing.pet_safe||null,
      pet_safety_notes||existing.pet_safety_notes||null, life_cycle||existing.life_cycle||null,
+     fertilizer_type||existing.fertilizer_type||null,
      req.params.id, req.userId]
   );
   res.json(rows[0]);
